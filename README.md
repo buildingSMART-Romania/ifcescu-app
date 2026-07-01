@@ -268,4 +268,15 @@ Live at **https://buildingsmart-romania.github.io/ifcescu-app/**.
 - Large IFC files are parsed client-side, so they take longer to open; very large
   georeferenced models use `@ifc-lite`'s RTC origin to avoid float32 jitter.
 - The location card and map/Earth links need network access (they stay empty offline).
-```
+
+## License
+
+This project's own source code is released under the **Mozilla Public License 2.0
+(MPL-2.0)** — © 2026 buildingSMART Romania. See [`LICENSE`](LICENSE); all source files in
+this repository are covered.
+
+It builds on [**`@ifc-lite`**](https://github.com/LTplus-AG/ifc-lite) (© LTplus-AG), which
+is also **MPL-2.0**. The production build bundles those files; their source is available
+upstream and their license notices are preserved. MPL-2.0 is a *file-level* copyleft: it
+permits commercial use and combining with other code, and only requires that MPL-covered
+files themselves stay open.
