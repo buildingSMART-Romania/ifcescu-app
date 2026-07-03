@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { IFC_ENTITY_NAMES } from "@ifc-lite/data";
 import { useI18n } from "../i18n/react";
+import { UiIcon } from "./icons";
 
 export interface TreeNode {
   expressID: number;
@@ -208,7 +209,7 @@ function Node({
           }}
           style={{ opacity: node.ids.length ? 1 : 0.25 }}
         >
-          {anyVisible ? "👁" : "🚫"}
+          <UiIcon kind={anyVisible ? "eye" : "eyeOff"} />
         </span>
         <span
           className={"tlabel" + (hasChildren ? " tbranch" : "")}

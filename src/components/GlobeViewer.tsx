@@ -128,7 +128,7 @@ export function GlobeViewer({ bytes, georef }: Props) {
           return;
         }
 
-        const enu = toEnuVertices(mesh.positions, georef, placement);
+        const enu = toEnuVertices(mesh.positions, placement);
         // Place at the orthometric cotă (Marea Neagră 1975). Global terrain
         // providers (Esri/Cesium) serve mean-sea-level heights that Cesium treats
         // as ellipsoidal, so the cotă world is what keeps the model coherent with

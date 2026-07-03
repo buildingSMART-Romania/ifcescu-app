@@ -13,8 +13,8 @@ import type { TreeNode } from "../components/IfcTree";
 import { t } from "../i18n";
 import type { PropGroup, FileInfo } from "../components/PropsPanel";
 import type { GeorefInfo } from "../ifc/editor";
-import { STEREO70, STEREO70_BOUNDS } from "../ifc/constants";
-import { stereo70ToWgs84 } from "../geo/crs";
+import { STEREO70 } from "../ifc/constants";
+import { computePlacement } from "../geo/placement";
 
 interface SpatialNodeLike {
   expressId: number;
@@ -243,24 +243,17 @@ export function gatherFileInfo(
     projectGlobalId = root.globalId ?? "";
   }
 
-  // Location pin = the model CENTROID mapped to Stereo 70 via the map conversion
-  // (identity when there's no georef). Using the centroid — not the map origin —
-  // makes models authored in real Stereo 70 coordinates with a zero Eastings/
-  // Northings offset still resolve to their true location. Shown only inside Romania.
-  let E = centroid.x;
-  let N = centroid.y;
-  if (georef) {
-    const t = (georef.rotationDeg * Math.PI) / 180;
-    const c = Math.cos(t), s = Math.sin(t);
-    E = georef.eastings + georef.scale * (centroid.x * c - centroid.y * s);
-    N = georef.northings + georef.scale * (centroid.x * s + centroid.y * c);
-  }
-  const b = STEREO70_BOUNDS;
-  let location: FileInfo["location"] = null;
-  if (E >= b.eMin && E <= b.eMax && N >= b.nMin && N <= b.nMax) {
-    const { lonDeg, latDeg } = stereo70ToWgs84(E, N);
-    location = { lat: latDeg, lon: lonDeg, crs: georef?.crsName || STEREO70.name };
-  }
+  // Location pin via the same placement logic as the globe (single source of
+  // truth): the CENTROID mapped to Stereo 70, dropping a contradictory map
+  // conversion when the geometry is already in real coordinates. Shown only when
+  // the model resolves to a real location inside Romania ("none" ⇒ hidden).
+  const p = computePlacement(
+    georef,
+    { minX: centroid.x, minY: centroid.y, minZ: centroid.z, maxX: centroid.x, maxY: centroid.y, maxZ: centroid.z },
+    null,
+  );
+  const location: FileInfo["location"] =
+    p.mode === "none" ? null : { lat: p.latDeg, lon: p.lonDeg, crs: georef?.crsName || STEREO70.name };
 
   return {
     fileName,

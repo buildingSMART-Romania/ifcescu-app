@@ -13,6 +13,9 @@ export type PlacementMode = "georef" | "real" | "none";
 
 export interface Placement {
   mode: PlacementMode;
+  /** The georef actually applied to vertices. null when the geometry is already
+   *  in real Stereo 70 coords (a contradictory IfcMapConversion is dropped). */
+  appliedGeoref: GeorefInfo | null;
   anchorStereo70: { e: number; n: number; h: number };
   lonDeg: number;
   latDeg: number;
@@ -59,18 +62,25 @@ export function computePlacement(georef: GeorefInfo | null, bbox: Bbox, grid: Ge
   const cy = (bbox.minY + bbox.maxY) / 2;
   const cz = (bbox.minZ + bbox.maxZ) / 2;
 
-  const anchor = modelToStereo70(georef, cx, cy, cz);
+  // If the RAW geometry already sits inside Romania, it is authored in real
+  // Stereo 70 coordinates — a present IfcMapConversion is then contradictory
+  // (e.g. an offset with scale 0 that would fling it elsewhere). Drop it and
+  // treat the geometry as real; otherwise apply the georef as given.
+  const applied = georef && inRomania(cx, cy) ? null : georef;
+
+  const anchor = modelToStereo70(applied, cx, cy, cz);
 
   // Placeable only when the resulting anchor is a real Romanian location. A model
   // with a degenerate/zero IfcMapConversion (or coords outside Romania) lands at
   // null island — treat it as "none" so the globe is disabled, not misplaced.
   let mode: PlacementMode;
   if (!inRomania(anchor.e, anchor.n)) mode = "none";
-  else mode = georef ? "georef" : "real";
+  else mode = applied ? "georef" : "real";
 
   if (mode === "none") {
     return {
       mode,
+      appliedGeoref: applied,
       anchorStereo70: anchor,
       lonDeg: NaN, latDeg: NaN, geoidUndulation: NaN, ellipsoidalH: NaN, convergenceDeg: NaN,
     };
@@ -81,6 +91,7 @@ export function computePlacement(georef: GeorefInfo | null, bbox: Bbox, grid: Ge
   const convergenceDeg = gridConvergenceDeg(anchor.e, anchor.n);
   return {
     mode,
+    appliedGeoref: applied,
     anchorStereo70: anchor,
     lonDeg,
     latDeg,
@@ -99,15 +110,14 @@ export function computePlacement(georef: GeorefInfo | null, bbox: Bbox, grid: Ge
  */
 export function toEnuVertices(
   positions: Float64Array,
-  georef: GeorefInfo | null,
   placement: Placement,
 ): Float32Array {
-  const { anchorStereo70: a, convergenceDeg } = placement;
+  const { anchorStereo70: a, convergenceDeg, appliedGeoref } = placement;
   const g = (convergenceDeg * Math.PI) / 180;
   const cg = Math.cos(g), sg = Math.sin(g);
   const out = new Float32Array(positions.length);
   for (let i = 0; i < positions.length; i += 3) {
-    const p = modelToStereo70(georef, positions[i], positions[i + 1], positions[i + 2]);
+    const p = modelToStereo70(appliedGeoref, positions[i], positions[i + 1], positions[i + 2]);
     const dE = p.e - a.e;
     const dN = p.n - a.n;
     out[i] = dE * cg + dN * sg; // East

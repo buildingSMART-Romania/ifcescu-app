@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useI18n } from "../i18n/react";
+import { UiIcon } from "./icons";
 
 interface ModelRow {
   id: string;
@@ -53,7 +54,7 @@ export function ModelsPanel({ models, busy, onToggleVisible, onRemove, onAddMode
               title={m.visible ? t("models.hide") : t("models.show")}
               onClick={() => onToggleVisible(m.id, !m.visible)}
             >
-              {m.visible ? "👁" : "🚫"}
+              <UiIcon kind={m.visible ? "eye" : "eyeOff"} />
             </span>
             <span className="models-name" title={m.fileName}>
               {m.fileName}{m.primary ? " ★" : ""}

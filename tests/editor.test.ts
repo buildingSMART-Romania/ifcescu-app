@@ -1,16 +1,14 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import { IfcParser } from "@ifc-lite/parser";
 import { PropertyValueType } from "@ifc-lite/data";
 import { IfcEditor, type SelectionDetail } from "../src/ifc/editor";
 
-// Uses a real IFC so the model is valid. Defaults to the bundled sample so the
-// test runs everywhere; override with IFC_SAMPLE=<path>. Skips if truly absent.
-const SAMPLE =
-  process.env.IFC_SAMPLE ??
-  fileURLToPath(new URL("../public/samples/Building-Architecture.ifc", import.meta.url));
-const hasSample = fs.existsSync(SAMPLE);
+// Round-trip against a REAL, on-disk IFC. Opt-in via IFC_SAMPLE=<path> so the
+// suite stays portable (no personal path); the self-contained round-trip lives
+// in createSite.test.ts. Skips cleanly when IFC_SAMPLE is unset.
+const SAMPLE = process.env.IFC_SAMPLE ?? "";
+const hasSample = SAMPLE !== "" && fs.existsSync(SAMPLE);
 
 const ELEMENT_RE = /WALL|SLAB|BEAM|COLUMN|PROXY|PILE|DOOR|WINDOW|FOOTING|MEMBER|PLATE|RAILING|COVERING/;
 

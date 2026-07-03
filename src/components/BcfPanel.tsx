@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { IfcDataStore } from "@ifc-lite/parser";
 import type { ViewerEngine } from "../viewer/engine";
 import type { BCFProject, BCFTopic, BCFViewpoint } from "../ifc/bcf";
+import { ToolIcon } from "./icons";
 import {
   createBCFProject,
   createBCFTopic,
@@ -215,7 +216,7 @@ export function BcfPanel({
   return (
     <div className="ids-panel">
       <div className="ids-head">
-        <span className="ids-head-title">💬 {t("bcf.title")}</span>
+        <span className="ids-head-title"><ToolIcon kind="bcf" /> {t("bcf.title")}</span>
         <div className="ids-head-actions">
           <button className="ids-icon" title={t("bcf.resetView")} onClick={onResetView}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>

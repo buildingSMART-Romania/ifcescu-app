@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n/react";
+import { ToolIcon } from "./icons";
 import type { PivotModel, Rgba } from "../viewer/pivot";
 import type { ViewerEngine } from "../viewer/engine";
 import {
@@ -303,7 +304,7 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
     <div className="an-dock clash-dock" style={{ height: dockH }}>
       <div className="an-dock-resize" onPointerDown={startResizeDock} title={t("viewer.resize")} />
       <div className="an-bar clash-topbar">
-        <strong>{t("clash.title")}</strong>
+        <strong className="an-title"><ToolIcon kind="clash" /> {t("clash.title")}</strong>
         <span className="clash-summary">
           {hasRun ? t("clash.summary", { total: String(rows.length), hard: String(counts.hard), clearance: String(counts.clearance) }) : ""}
         </span>

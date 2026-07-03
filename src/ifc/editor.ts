@@ -267,13 +267,18 @@ export class IfcEditor {
     const mc = g.mapConversion;
     const ax = mc.xAxisAbscissa ?? 1;
     const ay = mc.xAxisOrdinate ?? 0;
+    // A degenerate (0,0) axis means "no rotation given" (some exporters write it
+    // instead of 1,0) — avoid atan2(0,0). A zero/non-finite scale is never valid
+    // (it would collapse all geometry onto the anchor) — default it to 1.
+    const rotationDeg = ax === 0 && ay === 0 ? 0 : (Math.atan2(ay, ax) * 180) / Math.PI;
+    const scale = typeof mc.scale === "number" && Number.isFinite(mc.scale) && mc.scale !== 0 ? mc.scale : 1;
     return {
       crsName: g.projectedCRS?.name ?? "",
       eastings: mc.eastings,
       northings: mc.northings,
       height: mc.orthogonalHeight,
-      rotationDeg: (Math.atan2(ay, ax) * 180) / Math.PI,
-      scale: mc.scale ?? 1,
+      rotationDeg,
+      scale,
     };
   }
 

@@ -67,10 +67,14 @@ export interface ModelCatalog {
 
 /** Enumerate the classes / pset / property / quantity names actually in the model(s). */
 export function modelCatalog(models: PivotModel[]): ModelCatalog {
+  // Only classes that actually have geometry (the renderable localIDs), matching
+  // how psets/properties below are scoped — not every entity type in the file.
   const classes = new Set<string>();
   for (const m of models) {
-    const byType: Map<string, number[]> | undefined = (m.store as any)?.entityIndex?.byType;
-    if (byType) for (const t of byType.keys()) classes.add(t.toUpperCase());
+    for (const id of m.localIDs) {
+      const t = (m.store as any).getEntity(id)?.type;
+      if (t) classes.add(String(t).toUpperCase());
+    }
   }
   const psets = new Set<string>();
   const properties = new Set<string>();

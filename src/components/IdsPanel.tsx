@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { parseIdsXml, runIdsValidation } from "../ifc/ids";
 import type { IDSValidationReport, IDSSpecificationResult, IDSEntityResult } from "../ifc/ids";
 import { useI18n } from "../i18n/react";
+import { ToolIcon, UiIcon } from "./icons";
 
 interface Props {
   bytes: Uint8Array;
@@ -148,7 +149,7 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
   return (
     <div className="ids-panel">
       <div className="ids-head">
-        <span className="ids-head-title">📋 {t("ids.title")}</span>
+        <span className="ids-head-title"><ToolIcon kind="ids" /> {t("ids.title")}</span>
         <div className="ids-head-actions">
           {onOpenEditor && (
             <button className="ids-icon ids-create" title={t("idsEditor.title")} onClick={onOpenEditor}>
@@ -156,11 +157,11 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
             </button>
           )}
           <button className="ids-icon" title={t("ids.upload")} onClick={() => inputRef.current?.click()} disabled={validating}>
-            ⤓
+            <UiIcon kind="upload" />
           </button>
           {report && (
             <button className="ids-icon" title={t("ids.clearReport")} onClick={() => { onReport(null); setIdsName(null); setError(null); }}>
-              🗑
+              <UiIcon kind="trash" />
             </button>
           )}
           {onClose && (

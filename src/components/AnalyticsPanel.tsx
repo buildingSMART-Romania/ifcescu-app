@@ -3,6 +3,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, Treemap, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useI18n } from "../i18n/react";
+import { ToolIcon } from "./icons";
 import { discoverFields, rgbaCss, type PivotModel, type Rgba } from "../viewer/pivot";
 import {
   chartData, stackedData, histogramData, kpiValue, combineFilter, filteredModels, selectExcept,
@@ -141,7 +142,7 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
     <div className="an-dock" style={{ height: dockH }}>
       <div className="an-dock-resize" onPointerDown={startResizeDock} title={t("viewer.resize")} />
       <div className="an-bar">
-        <span className="an-title">{t("analytics.title")}</span>
+        <span className="an-title"><ToolIcon kind="analytics" /> {t("analytics.title")}</span>
         <span className="an-kpi-inline"><b>{nf.format(matched)}</b> {t("analytics.ofTotal", { total: nf.format(total) })}</span>
         {filter && <button className="an-clear" onClick={() => setSelected({})}>{t("analytics.clearFilter")}</button>}
         <span style={{ flex: 1 }} />

@@ -11,6 +11,7 @@ import { buildTree, buildClassTree, buildMaterialTree, getSelectionProps, gather
 import { MeasureTool, type MeasureMode } from "../viewer/measure";
 import { computePlacement, type PlacementMode } from "../geo/placement";
 import { IfcTree, defaultNodeOpen, nodeLabel, type TreeNode } from "./IfcTree";
+import { ToolIcon, VisIcon, ViewIcon, UiIcon } from "./icons";
 import { PropAccordion, FileInfoPanel, type PropGroup, type FileInfo } from "./PropsPanel";
 import { useI18n } from "../i18n/react";
 import { useSettings } from "../settings/react";
@@ -124,47 +125,6 @@ function Dropdown({ label, icon, active, children }: { label: string; icon: Reac
       {open && <div className="vmenu" onClick={() => setOpen(false)}>{children}</div>}
     </div>
   );
-}
-
-/** Small inline icons for the preset-view menu (arrows + an iso cube). */
-function ViewIcon({ kind }: { kind: "iso" | "up" | "down" | "left" | "right" | "front" | "back" }) {
-  const a = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (kind) {
-    case "up": return <svg {...a}><path d="M12 19V5M6 11l6-6 6 6" /></svg>;
-    case "down": return <svg {...a}><path d="M12 5v14M6 13l6 6 6-6" /></svg>;
-    case "left": return <svg {...a}><path d="M19 12H5M11 6l-6 6 6 6" /></svg>;
-    case "right": return <svg {...a}><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
-    case "front": return <svg {...a}><rect x="5" y="5" width="14" height="14" rx="1.5" fill="currentColor" stroke="none" /></svg>;
-    case "back": return <svg {...a}><rect x="5" y="5" width="14" height="14" rx="1.5" /></svg>;
-    case "iso": return <svg {...a}><path d="M12 2l8 4.6v9.2L12 22l-8-4.6V6.6z" /><path d="M12 11.3l8-4.6M12 11.3v10.4M12 11.3L4 6.7" /></svg>;
-  }
-}
-
-/** Line icons for the toolbar (replace the colored emoji to match the app style). */
-function ToolIcon({ kind }: { kind: "section" | "ids" | "bcf" | "table" | "point" | "views" | "measure" | "distance" | "filter" }) {
-  const a = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (kind) {
-    case "filter": return <svg {...a}><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z" /></svg>;
-    case "measure": return <svg {...a}><path d="M15.3 2.3 2.3 15.3l6.4 6.4L21.7 8.7z" /><path d="M7 7l1.6 1.6M10 4l1.6 1.6M4 10l1.6 1.6M13 13l1.6 1.6" /></svg>;
-    case "distance": return <svg {...a}><path d="M3 12h18" /><path d="M6 8l-3 4 3 4M18 8l3 4-3 4" /></svg>;
-    case "views": return <svg {...a}><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>;
-    case "section": return <svg {...a}><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" /></svg>;
-    case "ids": return <svg {...a}><path d="M9 3h6v3H9zM7 4.5H5a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5.5a1 1 0 0 0-1-1h-2" /><path d="M8.5 13.5l2.2 2.2 4.3-4.6" /></svg>;
-    case "bcf": return <svg {...a}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
-    case "table": return <svg {...a}><rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M3 9.5h18M3 15h18M9 4v16" /></svg>;
-    case "point": return <svg {...a}><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="2.6" /></svg>;
-  }
-}
-
-/** Line icons for the "Vizibilitate" menu (match the rest of the app's SVG style). */
-function VisIcon({ kind }: { kind: "hide" | "isolate" | "frame" | "show" }) {
-  const a = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (kind) {
-    case "hide": return <svg {...a}><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.6" /><path d="M3 3l18 18" /></svg>;
-    case "isolate": return <svg {...a}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" /></svg>;
-    case "frame": return <svg {...a}><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>;
-    case "show": return <svg {...a}><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.6" /></svg>;
-  }
 }
 
 // Max auto-fit width for the tree panel (matches the manual-resize clamp).
@@ -1140,7 +1100,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           <Dropdown label={t("viewer.measure")} icon={<ToolIcon kind="measure" />} active={measureMode !== "none"}>
             <button className={"vmenu-item" + (measureMode === "length" ? " active" : "")} onClick={() => chooseMeasure("length")}><span className="ic"><ToolIcon kind="distance" /></span> {t("viewer.measureLength")}</button>
             <button className={"vmenu-item" + (measureMode === "point" ? " active" : "")} onClick={() => chooseMeasure("point")}><span className="ic"><ToolIcon kind="point" /></span> {t("viewer.measurePoint")}</button>
-            <button className={"vmenu-item" + (measureMode === "area" ? " active" : "")} onClick={() => chooseMeasure("area")}><span className="ic">▱</span> {t("viewer.measureArea")}</button>
+            <button className={"vmenu-item" + (measureMode === "area" ? " active" : "")} onClick={() => chooseMeasure("area")}><span className="ic"><UiIcon kind="area" /></span> {t("viewer.measureArea")}</button>
             <div className="vmenu-sep" />
             <div onClick={(e) => e.stopPropagation()} style={{ padding: "4px 12px", fontSize: 12 }}>
               <div style={{ opacity: 0.7, margin: "2px 0 4px" }}>{t("viewer.snapTo")}</div>
@@ -1151,7 +1111,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               ))}
             </div>
             <div className="vmenu-sep" />
-            <button className="vmenu-item danger" onClick={() => measureRef.current?.clearAll()}><span className="ic">🗑</span><span>{t("viewer.clearMeasures")}</span></button>
+            <button className="vmenu-item danger" onClick={() => measureRef.current?.clearAll()}><span className="ic"><UiIcon kind="trash" /></span><span>{t("viewer.clearMeasures")}</span></button>
           </Dropdown>
 
           <span className="vsep" />
@@ -1161,12 +1121,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               <span className="ic"><ToolIcon kind="section" /></span><span>{t("viewer.sectionPlane")}</span><span className="vmenu-key">S</span>
             </button>
             <div className="vmenu-sep" />
-            <button className="vmenu-item danger" onClick={clearSections}><span className="ic">🗑</span><span>{t("viewer.clearSections")}</span></button>
+            <button className="vmenu-item danger" onClick={clearSections}><span className="ic"><UiIcon kind="trash" /></span><span>{t("viewer.clearSections")}</span></button>
           </Dropdown>
 
           <span className="vsep" />
 
-          <Dropdown label={t("viewer.visibility")} icon="👁">
+          <Dropdown label={t("viewer.visibility")} icon={<UiIcon kind="eye" />}>
             <button className="vmenu-item" onClick={() => hideIds(selArr())}>
               <span className="ic"><VisIcon kind="hide" /></span><span>{t("viewer.hideSel")}</span><span className="vmenu-key">H</span>
             </button>
@@ -1203,7 +1163,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             </button>
             <div className="vmenu-sep" />
             <button className="vmenu-item" onClick={() => engineRef.current?.fit()}>
-              <span className="ic">⤢</span><span>{t("viewer.fitAll")}</span><span className="vmenu-key">Z</span>
+              <span className="ic"><UiIcon kind="fit" /></span><span>{t("viewer.fitAll")}</span><span className="vmenu-key">Z</span>
             </button>
             <div className="vmenu-sep" />
             <button className="vmenu-item" onClick={saveViewpoint}>
@@ -1245,21 +1205,21 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           {analyticsEnabled && (
             <button className={"vbtn" + (analyticsOpen ? " active" : "")} onClick={() => setAnalyticsOpen((o) => !o)} title={t("analytics.title")}>
-              <span className="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" /><rect x="12" y="7" width="3" height="10" /><rect x="17" y="13" width="3" height="4" /></svg></span>
+              <span className="ic"><ToolIcon kind="analytics" /></span>
               <span>{t("analytics.tab")}</span>
             </button>
           )}
 
 
           <button className={"vbtn" + (clashOpen ? " active" : "")} onClick={() => setClashOpen((o) => !o)} disabled={pivotModels.length === 0} title={t("clash.title")}>
-            <span className="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /><path d="m6.3 6.3 2.9 2.9M14.8 14.8l2.9 2.9M17.7 6.3l-2.9 2.9M9.2 14.8l-2.9 2.9" /><circle cx="12" cy="12" r="2.5" /></svg></span>
+            <span className="ic"><ToolIcon kind="clash" /></span>
             <span>{t("clash.tab")}</span>
           </button>
 
           <span className="vsep" />
 
           <button className={"vbtn" + (showInfo ? " active" : "")} onClick={() => setShowInfo((s) => !s)} title={t("viewer.modelInfoTitle")}>
-            <span className="ic">ℹ</span>
+            <span className="ic"><ToolIcon kind="info" /></span>
             <span>{t("viewer.info")}</span>
           </button>
         </div>
@@ -1274,7 +1234,6 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           {dock === "filter" && (
             <FilterPanel
               editor={editor}
-              schema={detectSchema(bytes) as any}
               pivotModels={pivotModels}
               onResult={(ids, isolate) => { if (isolate) isolateIds(ids); else selectIds(ids); }}
               onClose={() => setDock("none")}

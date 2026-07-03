@@ -1,9 +1,10 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "../i18n/react";
-import { type IfcSchemaVersion } from "@ifc-lite/data";
 import type { PivotModel } from "../viewer/pivot";
 import { IfcEditor, type FilterOperator } from "../ifc/editor";
-import { ifcClasses, propertySets, modelCatalog } from "../ifc/idsCatalog";
+import { modelCatalog } from "../ifc/idsCatalog";
+import { ToolIcon } from "./icons";
 
 type NameOp = "contains" | "equals" | "regex";
 type Rule =
@@ -15,7 +16,6 @@ const PROP_OPS: FilterOperator[] = ["=", "!=", ">", "<", ">=", "<=", "CONTAINS",
 
 interface Props {
   editor: IfcEditor;
-  schema: IfcSchemaVersion;
   pivotModels: PivotModel[];
   /** Apply the matched ids: select (isolate=false) or isolate (isolate=true) in 3D. */
   onResult: (ids: number[], isolate: boolean) => void;
@@ -24,25 +24,29 @@ interface Props {
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Rule-based select/isolate, docked on the right like the IDS/BCF panels. */
-export function FilterPanel({ editor, schema, pivotModels, onResult, onClose }: Props) {
+/** Rule-based select/isolate, docked at the bottom like the Table/Clash panels. */
+export function FilterPanel({ editor, pivotModels, onResult, onClose }: Props) {
   const { t } = useI18n();
   const [rules, setRules] = useState<Rule[]>([{ kind: "type", classes: [] }]);
   const [combinator, setCombinator] = useState<"AND" | "OR">("AND");
   const [count, setCount] = useState<number | null>(null);
+  const [dockH, setDockH] = useState(280);
 
-  const [suggest, setSuggest] = useState<{ classes: string[]; psets: string[]; props: string[] }>({ classes: [], psets: [], props: [] });
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const [cls, ps] = await Promise.all([ifcClasses(schema), propertySets(schema)]);
-      if (!live) return;
-      const m = modelCatalog(pivotModels);
-      const uniq = (a: string[], b: string[]) => [...new Set([...a, ...b])].sort();
-      setSuggest({ classes: uniq(cls, m.classes), psets: uniq(ps.map((p) => p.name), m.psets), props: uniq(ps.flatMap((p) => p.properties.map((q) => q.name)), m.properties) });
-    })();
-    return () => { live = false; };
-  }, [schema, pivotModels]);
+  const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
+    e.preventDefault();
+    const sy = e.clientY, h0 = dockH;
+    const move = (ev: PointerEvent) => setDockH(Math.max(160, Math.min(window.innerHeight - 140, h0 + (sy - ev.clientY))));
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  // Suggest ONLY what's actually in the loaded model(s) — not the full
+  // buildingSMART catalog (hundreds of Pset_*), which overflowed the dropdown.
+  const suggest = useMemo(() => {
+    const m = modelCatalog(pivotModels);
+    return { classes: m.classes, psets: m.psets, props: m.properties };
+  }, [pivotModels]);
 
   useEffect(() => setCount(null), [rules, combinator]);
 
@@ -93,10 +97,11 @@ export function FilterPanel({ editor, schema, pivotModels, onResult, onClose }: 
   const canRun = activeRules.length > 0;
 
   return (
-    <div className="an-dock filter-dock">
+    <div className="an-dock filter-dock" style={{ height: dockH }}>
+      <div className="an-dock-resize" onPointerDown={startResizeDock} title={t("viewer.resize")} />
       <div className="an-bar filter-topbar">
         <span className="filter-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z" /></svg>
+          <ToolIcon kind="filter" />
           <strong>{t("filter.title")}</strong>
         </span>
         <div className="seg">
@@ -165,20 +170,79 @@ function addReplace(kind: Rule["kind"], i: number, setRule: (i: number, r: Rule)
   setRule(i, kind === "type" ? { kind: "type", classes: [] } : kind === "property" ? { kind: "property", pset: "", prop: "", op: "=", value: "" } : { kind: "name", op: "contains", value: "" });
 }
 
+/** Themed suggestion menu, portaled to <body> with fixed positioning so it
+ *  escapes the dock's overflow clipping. Filters options by the typed query. */
+const MENU_CAP = 50;
+function ComboMenu({ anchorEl, query, options, exclude, onPick, onClose }: {
+  anchorEl: HTMLElement | null; query: string; options: string[]; exclude?: string[];
+  onPick: (v: string) => void; onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(() => anchorEl?.getBoundingClientRect() ?? null);
+  useEffect(() => {
+    if (!anchorEl) return;
+    setRect(anchorEl.getBoundingClientRect());
+    const inside = (n: Node | null) => !!n && (anchorEl.contains(n) || !!menuRef.current?.contains(n));
+    // Reposition/close when the page scrolls, but ignore scrolling within the menu itself.
+    const onScroll = (e: Event) => { if (!inside(e.target as Node)) onClose(); };
+    const onResize = () => onClose();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onDown = (e: PointerEvent) => { if (!inside(e.target as Node)) onClose(); };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [anchorEl, onClose]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toUpperCase();
+    const ex = new Set(exclude ?? []);
+    return options.filter((o) => !ex.has(o) && (!q || o.toUpperCase().includes(q)));
+  }, [query, options, exclude]);
+
+  if (!rect || !filtered.length) return null;
+  const shown = filtered.slice(0, MENU_CAP);
+  return createPortal(
+    <div ref={menuRef} className="combo-menu" style={{ left: rect.left, top: rect.bottom + 2, minWidth: rect.width }}>
+      {shown.map((o) => (
+        <div key={o} className="combo-opt" onMouseDown={(e) => { e.preventDefault(); onPick(o); }}>{o}</div>
+      ))}
+      {filtered.length > shown.length && <div className="combo-more">+{filtered.length - shown.length}…</div>}
+    </div>,
+    document.body,
+  );
+}
+
 function ComboInput({ value, list, placeholder, onChange }: { value: string; list?: string[]; placeholder?: string; onChange: (v: string) => void }) {
-  const id = useId();
   const opts = useMemo(() => list ?? [], [list]);
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <span className="filter-field">
-      <input value={value} placeholder={placeholder} list={opts.length ? id : undefined} onChange={(e) => onChange(e.target.value)} />
-      {opts.length ? <datalist id={id}>{opts.map((o) => <option key={o} value={o} />)}</datalist> : null}
+      <input
+        ref={inputRef}
+        value={value}
+        placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+      />
+      {open && opts.length > 0 && (
+        <ComboMenu anchorEl={inputRef.current} query={value} options={opts} onPick={(v) => { onChange(v); setOpen(false); }} onClose={() => setOpen(false)} />
+      )}
     </span>
   );
 }
 
 function Chips({ values, suggestions, placeholder, onChange }: { values: string[]; suggestions: string[]; placeholder: string; onChange: (v: string[]) => void }) {
-  const id = useId();
   const [draft, setDraft] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const add = (raw: string) => {
     const v = raw.trim().toUpperCase();
     if (v && !values.includes(v)) onChange([...values, v]);
@@ -190,12 +254,16 @@ function Chips({ values, suggestions, placeholder, onChange }: { values: string[
         <span key={v} className="filter-chip">{v}<button onClick={() => onChange(values.filter((x) => x !== v))}>×</button></span>
       ))}
       <input
-        value={draft} placeholder={placeholder} list={id}
-        onChange={(e) => { const v = e.target.value; if (v.endsWith(",")) add(v.slice(0, -1)); else setDraft(v); }}
+        ref={inputRef}
+        value={draft} placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { const v = e.target.value; setOpen(true); if (v.endsWith(",")) add(v.slice(0, -1)); else setDraft(v); }}
         onKeyDown={(e) => { if (e.key === "Enter" && draft) { e.preventDefault(); add(draft); } }}
         onBlur={() => draft && add(draft)}
       />
-      <datalist id={id}>{suggestions.map((o) => <option key={o} value={o} />)}</datalist>
+      {open && suggestions.length > 0 && (
+        <ComboMenu anchorEl={inputRef.current} query={draft} options={suggestions} exclude={values} onPick={(v) => { add(v); inputRef.current?.focus(); }} onClose={() => setOpen(false)} />
+      )}
     </span>
   );
 }

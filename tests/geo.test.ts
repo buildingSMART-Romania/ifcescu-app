@@ -82,6 +82,18 @@ describe("placement mode detection", () => {
     expect(p.mode).toBe("none");
   });
 
+  it("ignores a contradictory IfcMapConversion when geometry is already real (Motorway case)", () => {
+    // Real Stereo 70 geometry (~472k/402k = Curtea de Argeș) but a bogus map
+    // conversion offsetting to Sfântu Gheorghe with scale 0. The real geometry
+    // must win: anchor stays at the geometry, offset dropped.
+    const bogus: GeorefInfo = { crsName: "EPSG:3844", eastings: 564194, northings: 482767, height: 0, rotationDeg: 0, scale: 1 };
+    const p = computePlacement(bogus, realBbox, grid);
+    expect(p.mode).toBe("real");
+    expect(p.appliedGeoref).toBeNull();
+    expect(p.anchorStereo70.e).toBeCloseTo(472350, 0);
+    expect(p.anchorStereo70.n).toBeCloseTo(402110, 0);
+  });
+
   it("georef and real coords agree on the same anchor", () => {
     const georef: GeorefInfo = { crsName: "EPSG:3844", eastings: 472350, northings: 402110, height: 450, rotationDeg: 0, scale: 1 };
     const a = computePlacement(georef, localBbox, grid);
