@@ -153,6 +153,31 @@ export default function App() {
     [loaded, extraModels],
   );
 
+  // Auto-load a bundled sample from a URL query param (e.g.
+  // ?model=Building-Architecture.ifc) so a shareable link opens straight into the
+  // viewer, skipping the upload screen. Not surfaced anywhere in the UI — it's a
+  // link-only entry point. Restricted to a bare .ifc filename under public/samples
+  // (no path traversal, no cross-origin fetch).
+  useEffect(() => {
+    const name = new URLSearchParams(window.location.search).get("model");
+    if (!name) return;
+    const file = name.split(/[\\/]/).pop() || "";
+    if (!/^[\w.-]+\.ifc$/i.test(file)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${import.meta.env.BASE_URL}samples/${file}`);
+        if (!res.ok) throw new Error(String(res.status));
+        const buf = await res.arrayBuffer();
+        if (!cancelled) onFile(new File([buf], file, { type: "application/x-step" }));
+      } catch (e: any) {
+        if (!cancelled) setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Global "?" opens the guide (ignored while typing in a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
