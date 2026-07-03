@@ -71,6 +71,8 @@ export const ro = {
     treeClass: "Clase",
     treeMaterial: "Materiale",
     treeLoading: "Se încarcă structura…",
+    loadError: "Modelul nu a putut fi încărcat: {detail}",
+    addModelError: "Nu am putut adăuga modelul: {detail}",
     measure: "Măsurare",
     measureLength: "Distanță",
     measurePoint: "Punct",

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { useI18n } from "../i18n/react";
 
 interface Props {
@@ -23,6 +23,26 @@ export function Modal({ title, onClose, children, footer, className }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Trap Tab inside the card (aria-modal promises this): cycle first ↔ last.
+  const onTrapTab = (e: ReactKeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const card = cardRef.current;
+    if (!card) return;
+    const els = Array.from(card.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ));
+    if (!els.length) { e.preventDefault(); return; }
+    const first = els[0];
+    const last = els[els.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || active === card) { e.preventDefault(); last.focus(); }
+    } else if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   useEffect(() => {
     // Move focus into the dialog, then restore it to the opener on close.
     const prev = document.activeElement as HTMLElement | null;
@@ -43,6 +63,7 @@ export function Modal({ title, onClose, children, footer, className }: Props) {
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
+        onKeyDown={onTrapTab}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="modal-head">

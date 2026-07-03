@@ -178,6 +178,10 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // loaded in the engine + per-model visibility (hidden global ids and ids set).
   const modelStoresRef = useRef<Map<string, { store: IfcDataStore; offset: number; localIDs: number[]; globalIDs: number[]; fileName: string; schema: IfcSchema }>>(new Map());
   const loadedModelIdsRef = useRef<Set<string>>(new Set());
+  // In-flight engine.addModel promises keyed by model id. The federation effect
+  // awaits these instead of re-calling addModel — a re-run while a model is
+  // still streaming must NOT add it a second time (duplicate ghost geometry).
+  const addingModelsRef = useRef<Map<string, Promise<void>>>(new Map());
   const hiddenModelsRef = useRef<Set<string>>(new Set());
   const modelHiddenRef = useRef<Set<number>>(new Set());
   // The owning model + local id of the (single) current selection, for editing.
@@ -237,6 +241,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [modelList, setModelList] = useState<{ id: string; fileName: string; primary: boolean; visible: boolean; schema: string }[]>([]);
   const [busyAdd, setBusyAdd] = useState(false);
   const [modelsVersion, setModelsVersion] = useState(0);
+  // Fatal primary-load failure → inline alert over the (blank) canvas instead of
+  // silently leaving the viewer empty and the tree on "loading".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Last federation addModel failure ("file: detail"); cleared on the next attempt.
+  const [addModelError, setAddModelError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -383,7 +392,10 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         onPlacementMode?.(pMode);
         setReady(true);
       } catch (e: any) {
-        if (!disposed) console.error("Viewer: failed to load model", e);
+        if (!disposed) {
+          console.error("Viewer: failed to load model", e);
+          setLoadError(e?.message ?? String(e));
+        }
       }
     })();
 
@@ -430,24 +442,43 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
   // Federation: react to the models list — add newcomers, remove the departed,
   // then rebuild the per-model forests. Runs once primary is ready, then on every
-  // models change. Guarded against duplicate adds (StrictMode / re-runs).
+  // models change. Guarded against duplicate adds (StrictMode / re-runs): ids
+  // still streaming live in addingModelsRef and are AWAITED, never re-added; each
+  // add's bookkeeping runs when it resolves even if this run was cancelled (a
+  // later run reconciles removal), and busyAdd always clears in a finally.
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine || !ready) return;
     let cancelled = false;
     (async () => {
       for (const m of models) {
-        if (loadedModelIdsRef.current.has(m.id) || engine.hasModel(m.id)) continue;
+        if (loadedModelIdsRef.current.has(m.id) || addingModelsRef.current.has(m.id)) continue;
         setBusyAdd(true);
-        try {
-          const { store, offset, localIDs, globalIDs } = await engine.addModel(m.id, m.bytes, m.fileName, { fitView: false });
-          if (cancelled) return;
-          modelStoresRef.current.set(m.id, { store, offset, localIDs, globalIDs, fileName: m.fileName, schema: detectSchema(m.bytes) });
-          loadedModelIdsRef.current.add(m.id);
-        } catch (e) {
-          console.error("Federare: nu am putut adăuga modelul", m.fileName, e);
-        }
+        setAddModelError(null);
+        const p = engine
+          .addModel(m.id, m.bytes, m.fileName, { fitView: false })
+          .then(({ store, offset, localIDs, globalIDs }) => {
+            // Record bookkeeping UNCONDITIONALLY — the model is in the scene now,
+            // so skipping this on cancel would orphan it (rendered but untracked).
+            modelStoresRef.current.set(m.id, { store, offset, localIDs, globalIDs, fileName: m.fileName, schema: detectSchema(m.bytes) });
+            loadedModelIdsRef.current.add(m.id);
+          })
+          .catch((e) => {
+            console.error("Federare: nu am putut adăuga modelul", m.fileName, e);
+            setAddModelError(`${m.fileName}: ${(e as any)?.message ?? String(e)}`);
+          })
+          .finally(() => {
+            addingModelsRef.current.delete(m.id);
+            if (addingModelsRef.current.size === 0) setBusyAdd(false);
+          });
+        addingModelsRef.current.set(m.id, p);
       }
+      // Wait for EVERY in-flight add (including models meanwhile removed from the
+      // list) so the removal pass below sees their bookkeeping and can reconcile.
+      while (addingModelsRef.current.size) {
+        await Promise.all([...addingModelsRef.current.values()]);
+      }
+      if (cancelled) return; // a newer run took over reconciliation
       for (const id of [...loadedModelIdsRef.current]) {
         if (models.some((m) => m.id === id)) continue;
         engine.removeModel(id);
@@ -457,8 +488,6 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         modelStoresRef.current.delete(id);
         loadedModelIdsRef.current.delete(id);
       }
-      if (cancelled) return;
-      setBusyAdd(false);
       allIDsRef.current = engine.allIDs;
       rebuildForests();
       applyVisibility();
@@ -977,19 +1006,28 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   };
 
   // Pointer events (not mouse) on all panel resizers so touch/pen work too.
+  // The active drag's teardown lives in a ref so unmounting mid-drag (or a
+  // second drag starting) still detaches the window listeners.
+  const resizeTeardownRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { resizeTeardownRef.current?.(); }, []);
+  const beginResizeDrag = (onMove: (ev: PointerEvent) => void) => {
+    resizeTeardownRef.current?.(); // safety: end any previous drag first
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      resizeTeardownRef.current = null;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    resizeTeardownRef.current = onUp;
+  };
   const startPropsResize = (e: ReactPointerEvent) => {
     e.preventDefault();
     // Width is measured from the panel's right edge (which stays fixed as the
     // panel grows leftward), NOT the window edge — otherwise an open IDS/BCF
     // dock sitting to the right throws the math off by its width.
     const right = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect().right;
-    const onMove = (ev: PointerEvent) => setPropsWidth(Math.min(640, Math.max(260, right - ev.clientX)));
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    beginResizeDrag((ev) => setPropsWidth(Math.min(640, Math.max(260, right - ev.clientX))));
   };
 
   // Drive the 3D scene from the analytics dashboard: isolate + color the matched
@@ -1073,24 +1111,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     // height tracks the cursor regardless of the toolbar/header above it.
     const panel = (e.currentTarget as HTMLElement).previousElementSibling as HTMLElement | null;
     const top = panel?.getBoundingClientRect().top ?? 0;
-    const onMove = (ev: PointerEvent) =>
-      setModelsHeight(Math.min(window.innerHeight * 0.75, Math.max(80, ev.clientY - top)));
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    beginResizeDrag((ev) => setModelsHeight(Math.min(window.innerHeight * 0.75, Math.max(80, ev.clientY - top))));
   };
   const startTreeResize = (e: ReactPointerEvent) => {
     e.preventDefault();
-    const onMove = (ev: PointerEvent) => setTreeWidth(Math.min(560, Math.max(200, ev.clientX - 12)));
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    beginResizeDrag((ev) => setTreeWidth(Math.min(560, Math.max(200, ev.clientX - 12))));
   };
 
   const selArr = () => [...selectedIds];
@@ -1180,7 +1205,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               <span className="ic"><VisIcon kind="hide" /></span><span>{t("viewer.hideSel")}</span><span className="vmenu-key">H</span>
             </button>
             <button className="vmenu-item" onClick={() => isolateIds(selArr())}>
-              <span className="ic"><VisIcon kind="isolate" /></span><span>{t("viewer.isolateSel")}</span><span className="vmenu-key">I</span>
+              <span className="ic"><VisIcon kind="isolate" /></span><span>{t("viewer.isolateSel")}</span><span className="vmenu-key">L</span>
             </button>
             <button className="vmenu-item" onClick={() => { if (selectedRef.current.size) engineRef.current?.zoomToSelection(selectedRef.current); }}>
               <span className="ic"><VisIcon kind="frame" /></span><span>{t("viewer.frameSel")}</span><span className="vmenu-key">C</span>
@@ -1275,6 +1300,20 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
         <div className="viewer-host" ref={hostRef} style={{ position: "relative" }}>
           <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+          {(loadError || addModelError) && (
+            <div style={{ position: "absolute", top: 12, left: 12, right: 12, zIndex: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              {loadError && (
+                <div className="alert error" role="alert">
+                  {t("viewer.loadError", { detail: loadError })}
+                </div>
+              )}
+              {addModelError && (
+                <div className="alert error" role="alert">
+                  {t("viewer.addModelError", { detail: addModelError })}
+                </div>
+              )}
+            </div>
+          )}
           {analyticsEnabled && bottomDock === "analytics" && ready && pivotModels.length > 0 && (
             <Suspense fallback={<div className="an-dock" style={{ height: 380 }} />}>
               <AnalyticsPanel models={pivotModels} onFilter={onAnalyticsFilter} onClose={() => setBottomDock("none")} />

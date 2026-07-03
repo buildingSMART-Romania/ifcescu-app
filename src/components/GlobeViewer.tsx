@@ -59,6 +59,11 @@ export function GlobeViewer({ bytes, georef }: Props) {
       fullscreenButton: false,
       infoBox: false,
       selectionIndicator: false,
+      // Render on demand only (camera moves, tile loads, explicit requestRender)
+      // — the globe stays mounted (hidden) after first open, and without this it
+      // would burn GPU re-rendering an unchanged scene forever.
+      requestRenderMode: true,
+      maximumRenderTimeChange: Infinity,
     });
 
     // Real global terrain, token-free (Esri World Elevation 3D, ellipsoidal
@@ -72,6 +77,7 @@ export function GlobeViewer({ bytes, georef }: Props) {
       );
       terrain.errorEvent.addEventListener(() => {
         viewer.scene.setTerrain(new Cesium.Terrain(Promise.resolve(new Cesium.EllipsoidTerrainProvider())));
+        viewer.scene.requestRender();
       });
       viewer.scene.setTerrain(terrain);
     } catch {
@@ -105,6 +111,13 @@ export function GlobeViewer({ bytes, georef }: Props) {
       headlight.direction = Cesium.Cartesian3.clone(viewer.scene.camera.directionWC, headlight.direction);
     };
     viewer.scene.preRender.addEventListener(onPreRender);
+
+    // With requestRenderMode a browser tab left hidden can miss frames queued
+    // while rAF was paused — request one when the page becomes visible again.
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !viewer.isDestroyed()) viewer.scene.requestRender();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     (async () => {
       try {
@@ -173,6 +186,7 @@ export function GlobeViewer({ bytes, georef }: Props) {
         }
         if (disposed) return;
         viewer.scene.primitives.add(model);
+        viewer.scene.requestRender(); // primitive adds don't trigger a frame in requestRenderMode
 
         const worldBs = Cesium.BoundingSphere.transform(localBs, modelMatrix, new Cesium.BoundingSphere());
         viewer.camera.flyToBoundingSphere(worldBs, {
@@ -202,6 +216,7 @@ export function GlobeViewer({ bytes, georef }: Props) {
 
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", onVisible);
       try {
         viewer.scene.preRender.removeEventListener(onPreRender);
         if (!viewer.isDestroyed()) viewer.destroy();

@@ -40,6 +40,11 @@ const SNAP_PX = 14; // screen-space snap radius for measurement
 // 50° keeps building corners and the silhouette but drops the dense triangulation
 // of tessellated/terrain surfaces. Boundary edges (1 face) are always emitted.
 const SHARP_COS = Math.cos((50 * Math.PI) / 180);
+// Selection-outline work caps: welding sharp edges for thousands of elements
+// (e.g. a whole storey) froze the UI for seconds, so beyond these limits the
+// outline stays PARTIAL — selection state / highlight fill are unaffected.
+const OUTLINE_MAX_IDS = 400;
+const OUTLINE_MAX_FLOATS = 200_000 * 6; // ~200k edge segments (6 floats each)
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** One federated model: its parsed store and the id offset applied to its
@@ -71,6 +76,10 @@ export class ViewerEngine {
   // Retained per-element world-space geometry (Y-up) for the selection outline.
   private readonly geom = new Map<number, { pos: Float32Array; idx: Uint32Array }[]>();
   private readonly snapCache = new Map<number, { verts: Float32Array; edges: Uint32Array } | null>();
+  // Welded sharp-edge segments per element, built lazily by setSelectionOutline
+  // (welding is expensive; re-selecting must not redo it). Invalidated alongside
+  // snapCache whenever an element's retained geometry changes (model add/remove).
+  private readonly edgeCache = new Map<number, Float32Array>();
   private selEdges: Float32Array | null = null;
   private outlineSvg: SVGSVGElement | null = null;
   private outlinePath: SVGPathElement | null = null;
@@ -192,20 +201,9 @@ export class ViewerEngine {
     });
   }
 
-  /** Back-compat single-model load — federates as the primary model "model-0". */
-  async load(bytes: Uint8Array): Promise<{ store: IfcDataStore; allIDs: number[] }> {
-    const { store } = await this.addModel("model-0", bytes, "model-0", { fitView: true });
-    return { store, allIDs: this.allIDs };
-  }
-
   /** Whether a model id is already federated (guards re-adds from effect re-runs). */
   hasModel(modelId: string): boolean {
     return this.models.has(modelId);
-  }
-
-  /** The global ids of one federated model (for per-model visibility / removal). */
-  getModelGlobalIds(modelId: string): number[] {
-    return this.models.get(modelId)?.globalIDs ?? [];
   }
 
   /** World-space (Y-up) AABB of one element, or null if it has no geometry.
@@ -326,6 +324,9 @@ export class ViewerEngine {
     if (pending.length) place(pending);
 
     const rec: LoadedModelRec = { store, offset, localIDs: [...localIDs], globalIDs: [...globalIDs], rtcOffset: rtc, fileName, meshes: collected };
+    // Drop any outline edges cached from PARTIAL geometry (an id offset range can
+    // be reused after a remove, and geom lists grow while a model streams in).
+    for (const g of rec.globalIDs) this.edgeCache.delete(g);
     this.models.set(modelId, rec);
     if (isFirst) this.store = store;
     this.recomputeAllIDs();
@@ -344,6 +345,7 @@ export class ViewerEngine {
       this.bounds.delete(g);
       this.geom.delete(g);
       this.snapCache.delete(g);
+      this.edgeCache.delete(g);
     }
     this.fed.unregisterModel(modelId);
     this.models.delete(modelId);
@@ -381,13 +383,24 @@ export class ViewerEngine {
     this.outlinePath?.setAttribute("stroke", color);
   }
 
-  /** Build the lime silhouette edges (world Y-up) for the selected element(s). */
+  /** Build the lime silhouette edges (world Y-up) for the selected element(s).
+   *  Cached per element (see edgeCache) and capped (see OUTLINE_MAX_*) so huge
+   *  selections stay responsive — beyond the caps the outline is partial. */
   setSelectionOutline(ids: Iterable<number>): void {
     const segs: number[] = [];
+    let count = 0;
     for (const id of ids) {
-      const list = this.geom.get(id);
-      if (!list) continue;
-      for (const g of list) collectSharpEdges(g.pos, g.idx, segs);
+      if (count >= OUTLINE_MAX_IDS || segs.length >= OUTLINE_MAX_FLOATS) break;
+      count++;
+      let edges = this.edgeCache.get(id);
+      if (edges === undefined) {
+        const list = this.geom.get(id);
+        const tmp: number[] = [];
+        if (list) for (const g of list) collectSharpEdges(g.pos, g.idx, tmp);
+        edges = new Float32Array(tmp);
+        this.edgeCache.set(id, edges);
+      }
+      for (let i = 0; i < edges.length; i++) segs.push(edges[i]);
     }
     this.selEdges = segs.length ? new Float32Array(segs) : null;
     this.renderer.requestRender();
@@ -446,9 +459,6 @@ export class ViewerEngine {
     this.secSizePct = Math.max(0.02, Math.min(1, pct));
     this.uploadSectionPlane();
     this.renderer.requestRender();
-  }
-  getSectionSize(): number {
-    return this.secSizePct;
   }
 
   /** Draw the section indicator as a filled magenta quad (projected each frame). */
@@ -509,9 +519,6 @@ export class ViewerEngine {
   setState(patch: Partial<RenderState>): void {
     this.state = { ...this.state, ...patch };
     this.renderer.requestRender();
-  }
-  getState(): RenderState {
-    return this.state;
   }
 
   private loop = (): void => {
@@ -723,11 +730,6 @@ export class ViewerEngine {
     this.uploadSectionPlane();
   }
 
-  /** True once a section plane has been created (via a face pick). */
-  hasSection(): boolean {
-    return !!this.sec;
-  }
-
   sectionSetPos(pos: number): void {
     if (this.sec) { this.sec.pos = pos; this.applySection(); }
   }
@@ -776,15 +778,6 @@ export class ViewerEngine {
    *  always frames everything currently loaded. */
   fit(): void {
     this.frameDir(this.modelBounds(), [1, 1, 1]);
-  }
-
-  /** "Home": return to the PRIMARY (first-loaded, offset 0) model at an isometric
-   *  angle — a stable anchor when several models are federated. */
-  homeView(): void {
-    let primary: LoadedModelRec | undefined;
-    for (const r of this.models.values()) if (r.offset === 0) { primary = r; break; }
-    const b = primary ? this.selectionBounds(primary.globalIDs) : this.modelBounds();
-    this.frameDir(b, [1, 1, 1]);
   }
 
   /** Orbit the camera by raw pixel deltas (used by the nav-cube drag). */
@@ -895,19 +888,6 @@ export class ViewerEngine {
   }
 
   // --- per-element color overrides (e.g. IDS non-conforming = red) --------
-  /** Paint the given elements with a fixed RGBA (0..1) override; replaces any prior set. */
-  setColorOverrides(ids: Iterable<number>, color: [number, number, number, number]): void {
-    const device = this.renderer.getGPUDevice();
-    const pipeline = this.renderer.getPipeline();
-    if (!device || !pipeline) return;
-    const scene = this.renderer.getScene();
-    const map = new Map<number, [number, number, number, number]>();
-    for (const id of ids) map.set(id, color);
-    if (map.size) scene.setColorOverrides(map, device, pipeline);
-    else scene.clearColorOverrides();
-    this.renderer.requestRender();
-  }
-
   /** Paint elements with per-element RGBA colors (0..1) — e.g. one color per
    *  data-table group. Replaces any prior override set. */
   setColorOverrideMap(map: Map<number, [number, number, number, number]>): void {

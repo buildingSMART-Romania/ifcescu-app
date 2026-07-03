@@ -4,7 +4,7 @@ import { ToolIcon } from "./icons";
 import type { PivotModel, Rgba } from "../viewer/pivot";
 import type { ViewerEngine } from "../viewer/engine";
 import {
-  detectClashesAsync, mergeStatuses, pairKey,
+  detectClashesAsync, mergeStatuses, pairKey, yieldToEventLoop,
   type ClashOptions, type ClashResult, type ClashStatus, type ClashElement,
 } from "../viewer/clash";
 import { entityType, entityName } from "../viewer/model";
@@ -13,7 +13,7 @@ import {
   expressIdsToGlobalIds, type BCFProject,
 } from "../ifc/bcf";
 import { formatLength } from "../settings/format";
-import { usePersistedNumber } from "../hooks/usePersistedNumber";
+import { useDockResize } from "../hooks/useDockResize";
 
 // Highlight colors for a selected clash pair (Set A element / Set B element).
 const RED: Rgba = [0.86, 0.15, 0.15, 1];
@@ -127,30 +127,29 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
   const [progress, setProgress] = useState(0);
   const [hideClosed, setHideClosed] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [dockH, setDockH] = usePersistedNumber("dockH:clash", 360);
+  const { height: dockH, startResize: startResizeDock } = useDockResize("dockH:clash", 360);
   const abortRef = useRef<{ aborted: boolean } | null>(null);
-
-  const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
-    e.preventDefault();
-    const sy = e.clientY, h0 = dockH;
-    const move = (ev: PointerEvent) => setDockH(Math.max(160, Math.min(window.innerHeight - 140, h0 + (sy - ev.clientY))));
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
 
   const toggle = (setter: (fn: (s: Set<string>) => Set<string>) => void, id: string) =>
     setter((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const buildSet = (ids: Set<string>, withTris: boolean): ClashElement[] => {
+  // Yields a macrotask every ~12ms so the spinner animates and Stop stays
+  // responsive while bounds/triangle soups are gathered for large sets.
+  const buildSet = async (ids: Set<string>, withTris: boolean, signal: { aborted: boolean }): Promise<ClashElement[]> => {
     const out: ClashElement[] = [];
+    let deadline = performance.now() + 12;
     for (const m of models) {
       if (!ids.has(m.id)) continue;
       for (const local of m.localIDs) {
+        if (signal.aborted) return out;
         const gid = local + m.offset;
         const b = engine.elementBounds(gid);
         if (!b) continue;
         out.push({ id: gid, model: m.id, min: b.min, max: b.max, tris: withTris ? engine.elementTriangleSoup(gid) ?? undefined : undefined });
+        if (performance.now() >= deadline) {
+          await yieldToEventLoop();
+          deadline = performance.now() + 12;
+        }
       }
     }
     return out;
@@ -180,9 +179,9 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
     const signal = { aborted: false };
     abortRef.current = signal;
     const opts: ClashOptions = { tolerance: tol, clearance: clearOn ? clearVal : null, narrowPhase: narrow };
-    await Promise.resolve(); // let the spinner paint before the heavy set build
-    const a = buildSet(setA, narrow);
-    const b = buildSet(setB, narrow);
+    await yieldToEventLoop(); // let the spinner paint before the heavy set build
+    const a = await buildSet(setA, narrow, signal);
+    const b = await buildSet(setB, narrow, signal);
     const raw = await detectClashesAsync(a, b, opts, { onProgress: (d, total) => setProgress(total ? d / total : 1), signal });
     const merged = mergeStatuses(raw.map(enrich), loadStatuses(models)) as Row[];
     merged.sort((x, y) => {

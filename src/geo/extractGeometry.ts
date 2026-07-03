@@ -34,6 +34,14 @@ interface RawMesh {
 // streams — so memoize by bytes identity and hand back the in-flight promise.
 let meshCache: { bytes: Uint8Array; promise: Promise<MergedMesh> } | null = null;
 
+/** Drop the cached mesh. Called when a new primary model replaces the old one so
+ *  the previous model's merged Float64 mesh + bytes don't stay pinned in memory
+ *  until the globe is next opened (the cache is keyed by bytes identity, so a new
+ *  model would never hit the stale entry anyway — it would only leak). */
+export function clearMeshCache(): void {
+  meshCache = null;
+}
+
 /** Build the merged IFC-coordinate mesh for the globe from raw IFC bytes. */
 export function extractMergedMeshFromBytes(bytes: Uint8Array): Promise<MergedMesh> {
   if (meshCache && meshCache.bytes === bytes) return meshCache.promise;

@@ -67,6 +67,8 @@ export const en: Dict = {
     treeClass: "Classes",
     treeMaterial: "Materials",
     treeLoading: "Loading structure…",
+    loadError: "Failed to load the model: {detail}",
+    addModelError: "Could not add the model: {detail}",
     measure: "Measure",
     measureLength: "Distance",
     measurePoint: "Point",

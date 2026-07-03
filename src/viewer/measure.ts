@@ -83,18 +83,24 @@ export class MeasureTool {
     const TH = 8; // px tolerance
     for (let i = this.done.length - 1; i >= 0; i--) {
       const m = this.done[i];
-      const scr = m.pts.map((p) => this.project(p)).filter(Boolean) as { x: number; y: number }[];
-      if (!scr.length) continue;
+      // Keep scr index-aligned with m.pts (null = unprojectable, e.g. behind
+      // the camera) so segments never connect non-adjacent vertices.
+      const scr = m.pts.map((p) => this.project(p));
+      if (!scr.some(Boolean)) continue;
       let hit = false;
       if (m.mode === "point") {
-        hit = Math.hypot(scr[0].x - x, scr[0].y - y) <= TH;
+        hit = !!scr[0] && Math.hypot(scr[0].x - x, scr[0].y - y) <= TH;
       } else {
         const n = scr.length;
         const segs = m.mode === "area" ? n : n - 1; // area is closed
         for (let k = 0; k < segs; k++) {
-          if (distToSeg(x, y, scr[k], scr[(k + 1) % n]) <= TH) { hit = true; break; }
+          const a = scr[k], b = scr[(k + 1) % n];
+          if (!a || !b) continue; // skip segments with an off-screen endpoint
+          if (distToSeg(x, y, a, b) <= TH) { hit = true; break; }
         }
-        if (!hit && m.mode === "area" && pointInPoly(x, y, scr)) hit = true;
+        // The polygon ring is only meaningful when every vertex projects.
+        if (!hit && m.mode === "area" && scr.every(Boolean) &&
+          pointInPoly(x, y, scr as { x: number; y: number }[])) hit = true;
       }
       if (hit) { this.selected = i; return true; }
     }
@@ -288,8 +294,12 @@ export class MeasureTool {
       for (let i = 1; i < m.pts.length; i++) per += dist(m.pts[i - 1], m.pts[i]);
       per += dist(m.pts[m.pts.length - 1], m.pts[0]);
       const area = polygonArea(m.pts);
-      const cx = scr.reduce((a, c) => a + (c?.x ?? 0), 0) / scr.length;
-      const cy = scr.reduce((a, c) => a + (c?.y ?? 0), 0) / scr.length;
+      // Centroid over the vertices that actually project; if none do, there is
+      // nowhere sensible to put the label, so skip it (never draw at 0,0).
+      const vis = scr.filter((c): c is { x: number; y: number } => !!c);
+      if (!vis.length) return;
+      const cx = vis.reduce((a, c) => a + c.x, 0) / vis.length;
+      const cy = vis.reduce((a, c) => a + c.y, 0) / vis.length;
       this.label(t("measure.areaPerimeter", { area: formatArea(area), per: formatLength(per) }), cx, cy);
     }
   }

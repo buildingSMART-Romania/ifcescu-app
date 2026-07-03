@@ -49,6 +49,7 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
   const [suggest, setSuggest] = useState<Suggest>({ classes: [], psets: [], props: [], dataTypes: [] });
   const [validating, setValidating] = useState(false);
   const [valSummary, setValSummary] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Immutable update via clone-mutate-set (the doc is small).
@@ -110,12 +111,13 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
   };
 
   const doLoad = async (file: File) => {
+    setLoadError(null);
     try {
       const parsed = parseIdsXml(await file.text());
       setDoc(parsed.specifications.length ? parsed : { ...parsed, specifications: [emptySpec()] });
       setSel(0);
     } catch (e: any) {
-      alert(t("idsEditor.loadError", { detail: e?.message ?? String(e) }));
+      setLoadError(t("idsEditor.loadError", { detail: e?.message ?? String(e) }));
     }
   };
   const doExport = () => {
@@ -156,6 +158,8 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
         <input ref={fileRef} type="file" accept=".ids,.xml" style={{ display: "none" }}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) doLoad(f); e.target.value = ""; }} />
       </div>
+
+      {loadError && <div className="alert error" role="alert">{loadError}</div>}
 
       {(errs.length > 0 || warns.length > 0) && (
         <ul className="idse-issues">

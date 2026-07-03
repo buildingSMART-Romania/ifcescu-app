@@ -14,7 +14,7 @@ import {
 } from "../viewer/pivot";
 import { boqPresetConfig, printBoqReport } from "../viewer/boqReport";
 import { useI18n } from "../i18n/react";
-import { usePersistedNumber } from "../hooks/usePersistedNumber";
+import { useDockResize } from "../hooks/useDockResize";
 
 /** Monochrome line icons for the table actions (match the app's SVG style). */
 function DtIcon({ kind }: { kind: "color" | "boq" | "organize" | "report" | "csv" | "table" }) {
@@ -46,7 +46,9 @@ interface Props {
  *  configured via a popup. Vertically resizable; coexists with the right dock. */
 export function DataTablePanel({ models, fileName, config, onConfigChange, onSelectRows, onColorByGroup, onClose }: Props) {
   const { t, lang } = useI18n();
-  const [height, setHeight] = usePersistedNumber("dockH:table", 300);
+  // Height follows the pointer position (not the drag delta) — matches the
+  // original table-dock behavior; clamps preserved (min 140, top gap 160).
+  const { height, startResize } = useDockResize("dockH:table", 300, { min: 140, reserve: 160, absolute: true });
   const [showConfig, setShowConfig] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [colorOn, setColorOn] = useState(false);
@@ -89,18 +91,6 @@ export function DataTablePanel({ models, fileName, config, onConfigChange, onSel
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
-
-  // Pointer events (not mouse) so touch/pen can resize too — matches the other docks.
-  const startResize = (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-    const onMove = (ev: PointerEvent) => setHeight(Math.min(window.innerHeight - 160, Math.max(140, window.innerHeight - ev.clientY - 16)));
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
 
   // Flatten the visible (expanded) rows into <tr>s, depth-first.
   const renderRows = (rows: PivotRow[], path: string): JSX.Element[] => {

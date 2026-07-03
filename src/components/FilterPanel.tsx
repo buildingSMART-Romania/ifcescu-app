@@ -6,7 +6,7 @@ import { entityName, entityType } from "../viewer/model";
 import { IfcEditor, type FilterOperator } from "../ifc/editor";
 import { modelCatalog } from "../ifc/idsCatalog";
 import { ToolIcon } from "./icons";
-import { usePersistedNumber } from "../hooks/usePersistedNumber";
+import { useDockResize } from "../hooks/useDockResize";
 
 type NameOp = "contains" | "equals" | "regex";
 export type FilterRule =
@@ -46,16 +46,7 @@ const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, onCombinator, onResult, onReset, onClose }: Props) {
   const { t } = useI18n();
   const [count, setCount] = useState<number | null>(null);
-  const [dockH, setDockH] = usePersistedNumber("dockH:filter", 280);
-
-  const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
-    e.preventDefault();
-    const sy = e.clientY, h0 = dockH;
-    const move = (ev: PointerEvent) => setDockH(Math.max(160, Math.min(window.innerHeight - 140, h0 + (sy - ev.clientY))));
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
+  const { height: dockH, startResize: startResizeDock } = useDockResize("dockH:filter", 280);
 
   // Suggest ONLY what's actually in the loaded model(s) — not the full
   // buildingSMART catalog (hundreds of Pset_*), which overflowed the dropdown.

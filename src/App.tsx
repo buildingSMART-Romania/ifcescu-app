@@ -70,6 +70,10 @@ export default function App() {
   // Federated models added in the 3D viewer (beyond the primary `loaded` one).
   const [extraModels, setExtraModels] = useState<ExtraModel[]>([]);
   const extraSeq = useRef(0);
+  // Generation counter for async load paths: bumped by every primary load so a
+  // slow, superseded parse can't overwrite the state of a newer one (e.g. drop
+  // big file A, then small file B — A must not replace B when it finally resolves).
+  const loadSeq = useRef(0);
   const toggleFavorite = (key: string) =>
     setFavorites((s) => {
       const x = new Set(s);
@@ -78,6 +82,7 @@ export default function App() {
     });
 
   const onFile = async (file: File) => {
+    const gen = ++loadSeq.current; // supersedes any in-flight load
     setError(null);
     setBusy(true);
     setLoaded(null);
@@ -89,11 +94,18 @@ export default function App() {
     setChangeCount(0); // edits belonged to the previous model
     setGlobeMode(null); // placeability is re-determined for the new model
     setGlobeOpened(false); // the kept-alive globe belonged to the previous model
+    if (globeOpened) {
+      // The globe's mesh cache pins the previous model's merged mesh; drop it.
+      // Dynamic import so the geometry chunk isn't loaded eagerly — if the globe
+      // was never opened the cache is empty and there's nothing to clear.
+      import("./geo/extractGeometry").then((m) => m.clearMeshCache()).catch(() => {});
+    }
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // The primary model's editor lives here so edits + the download button
       // survive tab switches. The 3D viewer edits this same editor instance.
       const editor = await IfcEditor.open(bytes);
+      if (gen !== loadSeq.current) return; // a newer load took over
       const g = editor.getGeoref();
       setLoaded({ editor, georef: g, bytes, fileName: file.name });
       setGeoref(g);
@@ -101,19 +113,23 @@ export default function App() {
       // mean a real location — a zero/degenerate map conversion isn't placeable).
       setTab("view");
     } catch (e: any) {
+      if (gen !== loadSeq.current) return; // stale failure — don't paint over the newer load
       setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
     } finally {
-      setBusy(false);
+      if (gen === loadSeq.current) setBusy(false);
     }
   };
 
   // Federation: add/remove non-primary models (3D viewer only).
   const onAddModel = async (file: File) => {
+    const gen = loadSeq.current; // adds belong to the current primary session
     setError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
+      if (gen !== loadSeq.current) return; // a new primary load reset the session
       setExtraModels((p) => [...p, { id: `extra-${++extraSeq.current}`, bytes, fileName: file.name }]);
     } catch (e: any) {
+      if (gen !== loadSeq.current) return;
       setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
     }
   };
@@ -164,14 +180,15 @@ export default function App() {
     const file = name.split(/[\\/]/).pop() || "";
     if (!/^[\w.-]+\.ifc$/i.test(file)) return;
     let cancelled = false;
+    const gen = loadSeq.current; // if the user starts a load first, the sample yields
     (async () => {
       try {
         const res = await fetch(`${import.meta.env.BASE_URL}samples/${file}`);
         if (!res.ok) throw new Error(String(res.status));
         const buf = await res.arrayBuffer();
-        if (!cancelled) onFile(new File([buf], file, { type: "application/x-step" }));
+        if (!cancelled && gen === loadSeq.current) onFile(new File([buf], file, { type: "application/x-step" }));
       } catch (e: any) {
-        if (!cancelled) setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
+        if (!cancelled && gen === loadSeq.current) setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
       }
     })();
     return () => { cancelled = true; };
@@ -258,7 +275,7 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {error && <div className="alert error">{error}</div>}
+              {error && <div className="alert error" role="alert">{error}</div>}
             </div>
           </div>
         )}

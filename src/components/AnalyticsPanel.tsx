@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart, Bar, PieChart, Pie, Cell, Treemap, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useI18n } from "../i18n/react";
 import { ToolIcon } from "./icons";
-import { usePersistedNumber } from "../hooks/usePersistedNumber";
+import { useDockResize } from "../hooks/useDockResize";
 import { discoverFields, rgbaCss, type PivotModel, type Rgba } from "../viewer/pivot";
 import {
   chartData, stackedData, histogramData, kpiValue, combineFilter, filteredModels, selectExcept,
-  type ChartCard, type ChartDatum, type ChartType,
+  type ChartCard, type ChartDatum, type ChartType, type StackedResult,
 } from "../viewer/analytics";
 
 // Tile geometry on the canvas, in pixels (own lightweight drag/resize grid — no
@@ -33,6 +33,12 @@ function ownDims(c: ChartCard): string[] {
 }
 const selDimKey = (c: ChartCard) => (c.type === "histogram" ? `hist:${c.histKey}` : c.dimKey);
 
+/** One card's precomputed dataset (see the `cardData` memo). */
+type CardData =
+  | { kind: "kpi"; value: number }
+  | { kind: "stacked"; stacked: StackedResult }
+  | { kind: "list"; data: ChartDatum[] };
+
 export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
   const { t, lang } = useI18n();
   const fields = useMemo(() => discoverFields(models), [models, lang]);
@@ -54,21 +60,18 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [colorDimKey, setColorDimKey] = useState<string | null>(null);
   // Dock height (px) — bottom dock so the 3D model stays visible above it.
-  const [dockH, setDockH] = usePersistedNumber("dockH:analytics", 380);
-  const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
-    e.preventDefault();
-    const sy = e.clientY, h0 = dockH;
-    const move = (ev: PointerEvent) => setDockH(Math.max(160, Math.min(window.innerHeight - 140, h0 + (sy - ev.clientY))));
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
+  const { height: dockH, startResize: startResizeDock } = useDockResize("dockH:analytics", 380);
 
   // Lightweight drag (from the tile header) + resize (bottom-right handle).
+  // The active drag's teardown lives in a ref so unmounting mid-drag removes
+  // the window listeners instead of leaking them.
+  const dragStopRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => dragStopRef.current?.(), []);
   const startDrag = (e: { clientX: number; clientY: number; preventDefault: () => void }, id: string, mode: "move" | "resize") => {
     e.preventDefault();
     const g = geo[id];
     if (!g) return;
+    dragStopRef.current?.(); // never stack two drags
     const sx = e.clientX, sy = e.clientY;
     const { x, y, w, h } = g;
     const move = (ev: PointerEvent) => {
@@ -80,7 +83,12 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
           : { x, y, w: Math.max(220, w + dx), h: Math.max(150, h + dy) },
       }));
     };
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      dragStopRef.current = null;
+    };
+    dragStopRef.current = up;
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
@@ -105,6 +113,28 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
 
   const filter = useMemo(() => combineFilter(selected, dataByDim, colorDimKey), [selected, dataByDim, colorDimKey]);
   const matched = filter ? filter.ids.length : total;
+
+  // Every card's aggregated dataset (cross-filtered to the OTHER visuals'
+  // selections), computed once per data change. Deliberately independent of
+  // `geo`, so dragging/resizing a tile re-renders without re-aggregating.
+  const cardData = useMemo(() => {
+    const out: Record<string, CardData> = {};
+    for (const card of cards) {
+      const subset = combineFilter(selectExcept(selected, ownDims(card)), dataByDim, null);
+      const vModels = filteredModels(models, subset ? new Set(subset.ids) : null);
+      if (card.type === "kpi") {
+        out[card.id] = { kind: "kpi", value: kpiValue(vModels, card.measure) };
+      } else if (card.type === "stacked") {
+        out[card.id] = { kind: "stacked", stacked: stackedData(vModels, card) };
+      } else if (card.type === "histogram") {
+        const f = fields.find((x) => x.key === card.histKey);
+        out[card.id] = { kind: "list", data: f ? histogramData(vModels, f, card.bins ?? 10) : [] };
+      } else {
+        out[card.id] = { kind: "list", data: chartData(vModels, card) };
+      }
+    }
+    return out;
+  }, [cards, selected, dataByDim, models, fields]);
 
   useEffect(() => {
     onFilter(filter ? filter.ids : null, filter ? filter.colors : null);
@@ -154,8 +184,6 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
       <div className="an-canvas">
         <div className="an-grid" style={{ height: contentH }}>
           {cards.map((card) => {
-            const subset = combineFilter(selectExcept(selected, ownDims(card)), dataByDim, null);
-            const vModels = filteredModels(models, subset ? new Set(subset.ids) : null);
             const sel = selected[selDimKey(card)];
             const g = geo[card.id] ?? { x: 8, y: 8, w: 360, h: 280 };
             const stop = (e: any) => e.stopPropagation();
@@ -192,7 +220,7 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
                   <span className="an-tile-x" title={t("analytics.removeChart")} onClick={() => removeCard(card.id)} onPointerDown={stop}>×</span>
                 </div>
                 <div className="an-tile-body">
-                  {renderChart(card, vModels, { sel, toggle, nf, t, fieldLabel })}
+                  {renderChart(card, cardData[card.id], { sel, toggle, nf, t, fieldLabel })}
                 </div>
                 <div className="an-tile-resize" onPointerDown={(e) => startDrag(e, card.id, "resize")} title="" />
               </div>
@@ -213,13 +241,13 @@ interface RenderCtx {
   fieldLabel: (key: string) => string;
 }
 
-function renderChart(card: ChartCard, models: PivotModel[], ctx: RenderCtx) {
+function renderChart(card: ChartCard, cd: CardData | undefined, ctx: RenderCtx) {
   const { sel, toggle, nf, t } = ctx;
   const lbl = (d: any) => d?.label ?? d?.payload?.label ?? "";
   const op = (label: string) => (sel && !sel.includes(label) ? 0.25 : 1);
 
   if (card.type === "kpi") {
-    const v = kpiValue(models, card.measure);
+    const v = cd?.kind === "kpi" ? cd.value : 0;
     return (
       <div className="an-kpi-card">
         <div className="an-kpi-big">{nf.format(v)}</div>
@@ -230,7 +258,7 @@ function renderChart(card: ChartCard, models: PivotModel[], ctx: RenderCtx) {
 
   if (card.type === "stacked") {
     if (!card.stackKey) return <div className="an-empty">{t("analytics.pickStack")}</div>;
-    const { rows, series } = stackedData(models, card);
+    const { rows, series } = cd?.kind === "stacked" ? cd.stacked : { rows: [], series: [] };
     if (!rows.length) return <div className="an-empty">{t("analytics.noData")}</div>;
     return (
       <ResponsiveContainer width="100%" height="100%">
@@ -247,10 +275,7 @@ function renderChart(card: ChartCard, models: PivotModel[], ctx: RenderCtx) {
     );
   }
 
-  const data: ChartDatum[] =
-    card.type === "histogram"
-      ? (() => { const f = discoverFields(models).find((x) => x.key === card.histKey); return f ? histogramData(models, f, card.bins ?? 10) : []; })()
-      : chartData(models, card);
+  const data: ChartDatum[] = cd?.kind === "list" ? cd.data : [];
 
   if (!data.length) return <div className="an-empty">{card.type === "histogram" ? t("analytics.pickNumeric") : t("analytics.noData")}</div>;
 

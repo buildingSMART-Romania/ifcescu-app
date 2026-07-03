@@ -151,7 +151,10 @@ function specLines(spec: IDSSpecification): string[] {
 // value that doesn't match makes strict validators (e.g. IfcTester) reject the
 // whole file, so we omit these when they don't fit rather than write junk.
 const EMAIL_RE = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+// Anchored shape check plus Date.parse (ISO parsing rejects out-of-range
+// month/day, e.g. "2026-13-01" or "2026-02-30") so only a real xs:date passes.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isXsDate = (s: string): boolean => DATE_RE.test(s) && !isNaN(Date.parse(s));
 
 function infoLines(doc: IDSDocument): string[] {
   const i = doc.info;
@@ -162,7 +165,7 @@ function infoLines(doc: IDSDocument): string[] {
   opt("version", i.version);
   opt("description", i.description);
   if (i.author && EMAIL_RE.test(i.author)) out.push(`<author>${esc(i.author)}</author>`);
-  if (i.date && DATE_RE.test(i.date)) out.push(`<date>${esc(i.date)}</date>`);
+  if (i.date && isXsDate(i.date)) out.push(`<date>${esc(i.date)}</date>`);
   opt("purpose", i.purpose);
   opt("milestone", i.milestone);
   return [`<info>`, ...indent(out, 1), `</info>`];

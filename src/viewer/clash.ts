@@ -411,6 +411,16 @@ export function detectClashes(setA: ClashElement[], setB: ClashElement[], opts: 
   return out;
 }
 
+/** How long the detection loop may run before yielding a macrotask (ms). */
+const YIELD_EVERY_MS = 12;
+
+/** Real macrotask yield. An awaited microtask (`Promise.resolve()`) never lets
+ *  the browser paint, deliver input, or flip an abort flag mid-run — a timeout
+ *  does. Shared with the UI layer so heavy pre-passes can yield the same way. */
+export function yieldToEventLoop(): Promise<void> {
+  return new Promise<void>((r) => setTimeout(r, 0));
+}
+
 /** Async clash detection that yields to the event loop and reports progress so a
  *  large narrow-phase pass keeps the UI responsive and stays cancelable. */
 export async function detectClashesAsync(
@@ -422,18 +432,19 @@ export async function detectClashesAsync(
   const candidates = broadPhase(setA, setB, opts);
   const out: ClashResult[] = [];
   const total = candidates.length;
+  let deadline = performance.now() + YIELD_EVERY_MS;
   for (let i = 0; i < total; i++) {
     if (hooks?.signal?.aborted) break;
     const r = finalize(candidates[i], opts);
     if (r) out.push(r);
-    if ((i & 63) === 0) { reportMaybe(hooks, i, total); await Promise.resolve(); }
+    if (performance.now() >= deadline) {
+      hooks?.onProgress?.(i + 1, total);
+      await yieldToEventLoop();
+      deadline = performance.now() + YIELD_EVERY_MS;
+    }
   }
   hooks?.onProgress?.(total, total);
   return out;
-}
-
-function reportMaybe(hooks: { onProgress?: (done: number, total: number) => void } | undefined, i: number, total: number): void {
-  hooks?.onProgress?.(i, total);
 }
 
 /** Re-apply previously chosen statuses (by stable pair key) to a fresh run. */
