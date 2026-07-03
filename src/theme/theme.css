@@ -2820,6 +2820,8 @@ table.summary td.k {
 .filter-chips input { border: none; background: transparent; color: var(--text); outline: none; flex: 1; min-width: 80px; font-size: 0.85rem; padding: 3px; }
 .filter-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(var(--accent-rgb), 0.14); color: var(--accent); border-radius: 4px; padding: 1px 4px 1px 6px; font-size: 0.78rem; }
 .filter-chip button { border: none; background: none; color: inherit; cursor: pointer; padding: 0 2px; }
+/* Live per-rule match count at the end of a rule row. */
+.filter-count { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
 
 /* Themed suggestion menu (portaled, fixed) for the filter comboboxes. */
 .combo-menu {

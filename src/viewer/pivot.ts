@@ -276,6 +276,34 @@ export function getFieldValue(store: IfcDataStore, id: number, field: FieldDef):
   return val;
 }
 
+/** Distinct values present in the loaded model(s) for a property — suggestions
+ *  for the Filter panel's value combobox. With a pset it reuses getFieldValue's
+ *  per-store cache; with an empty pset it matches the property name in ANY pset
+ *  (mirroring how the filter's bulkSelect treats a blank pset). Capped so a
+ *  per-element-unique property (tag-like) doesn't build a giant list. */
+export function distinctFieldValues(models: PivotModel[], pset: string, prop: string, cap = 200): string[] {
+  const p = prop.trim(), ps = pset.trim();
+  if (!p) return [];
+  // Same key format as discoverFields so getFieldValue's cache is shared.
+  const field: FieldDef | null = ps ? { key: propKey(ps, p), label: p, source: "property", pset: ps, name: p, kind: "categorical" } : null;
+  const out = new Set<string>();
+  outer: for (const m of models) {
+    for (const id of m.localIDs) {
+      if (field) {
+        const v = getFieldValue(m.store, id, field);
+        if (v != null && v !== "") out.add(String(v));
+      } else {
+        for (const set of extractPropertiesOnDemand(m.store, id)) {
+          const pr = set.properties.find((x) => x.name === p);
+          if (pr && pr.value != null && pr.value !== "") out.add(String(pr.value));
+        }
+      }
+      if (out.size >= cap) break outer;
+    }
+  }
+  return [...out].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
 // --- aggregation ----------------------------------------------------------
 // An element flattened across models: its owning store, local id (for value
 // lookups), global id (for 3D selection) and model name (for the "Model" field).

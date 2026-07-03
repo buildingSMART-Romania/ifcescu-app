@@ -36,6 +36,9 @@ import { createBCFFromIDSReport, addTopicToProject, extractViewpointState, globa
 
 // Non-conforming IDS elements are painted this red in the 3D view.
 const IDS_FAIL_COLOR: [number, number, number, number] = [0.85, 0.13, 0.13, 1];
+// The Filter panel's "Colorize" paints matches this violet (distinct from the
+// IDS red and the group-color palette).
+const FILTER_COLOR: [number, number, number, number] = [0.55, 0.36, 0.96, 1];
 
 // The mutually-exclusive bottom panels (one open at a time).
 type BottomDock = "none" | "filter" | "clash" | "analytics" | "table";
@@ -1283,7 +1286,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               onRules={setFilterRules}
               combinator={filterCombinator}
               onCombinator={setFilterCombinator}
-              onResult={(ids, isolate) => { if (isolate) isolateIds(ids); else selectIds(ids); }}
+              onResult={(ids, action) => {
+                if (action === "isolate") isolateIds(ids);
+                else if (action === "select") selectIds(ids);
+                else if (action === "hide") hideIds(ids);
+                else setGroupColorMap(ids.length ? new Map(ids.map((id) => [id, FILTER_COLOR] as [number, Rgba])) : null);
+              }}
+              onReset={() => { showAll(); setGroupColorMap(null); selectIds([]); }}
               onClose={() => setBottomDock("none")}
             />
           )}

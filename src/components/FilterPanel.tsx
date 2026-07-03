@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../i18n/react";
-import type { PivotModel } from "../viewer/pivot";
+import { distinctFieldValues, type PivotModel } from "../viewer/pivot";
+import { entityName, entityType } from "../viewer/model";
 import { IfcEditor, type FilterOperator } from "../ifc/editor";
 import { modelCatalog } from "../ifc/idsCatalog";
 import { ToolIcon } from "./icons";
@@ -10,9 +11,13 @@ import { usePersistedNumber } from "../hooks/usePersistedNumber";
 type NameOp = "contains" | "equals" | "regex";
 export type FilterRule =
   | { kind: "type"; classes: string[] }
+  | { kind: "spatial"; ids: number[] } // express ids of storey/building/site containers
   | { kind: "property"; pset: string; prop: string; op: FilterOperator; value: string }
   | { kind: "name"; op: NameOp; value: string };
 type Rule = FilterRule;
+
+/** What to do with the matched elements in 3D. */
+export type FilterAction = "select" | "isolate" | "hide" | "color";
 
 /** The initial rule set for a fresh filter (one empty type rule). */
 export const DEFAULT_FILTER_RULES: FilterRule[] = [{ kind: "type", classes: [] }];
@@ -27,15 +32,18 @@ interface Props {
   onRules: (rules: FilterRule[]) => void;
   combinator: "AND" | "OR";
   onCombinator: (c: "AND" | "OR") => void;
-  /** Apply the matched ids: select (isolate=false) or isolate (isolate=true) in 3D. */
-  onResult: (ids: number[], isolate: boolean) => void;
+  /** Apply the matched ids in 3D: select / isolate / hide / color. */
+  onResult: (ids: number[], action: FilterAction) => void;
+  /** Undo a previous run: restore visibility, colors and selection. */
+  onReset: () => void;
   onClose: () => void;
 }
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Rule-based select/isolate, docked at the bottom like the Table/Clash panels. */
-export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, onCombinator, onResult, onClose }: Props) {
+/** Rule-based select/isolate/hide/color, docked at the bottom like the
+ *  Table/Clash panels. */
+export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, onCombinator, onResult, onReset, onClose }: Props) {
   const { t } = useI18n();
   const [count, setCount] = useState<number | null>(null);
   const [dockH, setDockH] = usePersistedNumber("dockH:filter", 280);
@@ -56,7 +64,52 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
     return { classes: m.classes, psets: m.psets, props: m.properties };
   }, [pivotModels]);
 
+  // Spatial containers of the PRIMARY model (the one the filter queries): every
+  // site/building/storey/space node under spatialHierarchy.project, with a
+  // display label ("name — falls back to class — #id"; duplicates get the id).
+  const spatial = useMemo(() => {
+    const primary = pivotModels.find((m) => m.offset === 0) ?? pivotModels[0];
+    const store = primary?.store as any;
+    const root = store?.spatialHierarchy?.project ?? null;
+    const opts: { id: number; label: string }[] = [];
+    if (root) {
+      const used = new Set<string>();
+      const visit = (n: any, depth: number) => {
+        if (depth > 0) { // skip the IfcProject root — selecting it means "everything"
+          let label = String(n.name || entityName(store, n.expressId) || entityType(store, n.expressId) || `#${n.expressId}`).trim() || `#${n.expressId}`;
+          if (used.has(label)) label = `${label} (#${n.expressId})`;
+          used.add(label);
+          opts.push({ id: n.expressId, label });
+        }
+        for (const c of n.children ?? []) visit(c, depth + 1);
+      };
+      visit(root, 0);
+    }
+    return { root, opts };
+  }, [pivotModels]);
+
+  // Elements under the chosen containers, recursively (containment in the
+  // hierarchy is per-node, so a building/site must union its descendants).
+  const spatialElements = (ids: number[]): Set<number> => {
+    const out = new Set<number>();
+    if (!spatial.root || !ids.length) return out;
+    const want = new Set(ids);
+    const walk = (n: any, inSel: boolean) => {
+      const sel = inSel || want.has(n.expressId);
+      if (sel) for (const e of n.elements ?? []) out.add(e);
+      for (const c of n.children ?? []) walk(c, sel);
+    };
+    walk(spatial.root, false);
+    return out;
+  };
+
   useEffect(() => setCount(null), [rules, combinator]);
+
+  const isActive = (r: Rule): boolean =>
+    r.kind === "type" ? r.classes.length > 0
+    : r.kind === "spatial" ? r.ids.length > 0
+    : r.kind === "property" ? !!r.prop.trim()
+    : !!r.value.trim();
 
   const ruleIds = (r: Rule): Set<number> => {
     if (r.kind === "type") {
@@ -64,6 +117,7 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
       for (const c of r.classes) for (const id of editor.expressIdsOfClass(c)) out.add(id);
       return out;
     }
+    if (r.kind === "spatial") return spatialElements(r.ids);
     if (r.kind === "property") {
       if (!r.prop.trim()) return new Set();
       return new Set(editor.bulkSelect({ propertyFilters: [{ psetName: r.pset.trim() || undefined, propName: r.prop.trim(), operator: r.op, value: r.value }] }));
@@ -73,9 +127,31 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
     return new Set(editor.bulkSelect({ namePattern: pattern }));
   };
 
-  const activeRules = rules.filter((r) =>
-    r.kind === "type" ? r.classes.length > 0 : r.kind === "property" ? r.prop.trim() : r.value.trim(),
+  const activeRules = rules.filter(isActive);
+
+  // Live per-rule match counts + value suggestions run on a DEFERRED copy of the
+  // rules so typing stays responsive on large models.
+  const deferredRules = useDeferredValue(rules);
+  const ruleCounts = useMemo(
+    () => deferredRules.map((r) => {
+      if (!isActive(r)) return null;
+      try { return ruleIds(r).size; } catch { return null; }
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [deferredRules, editor, spatial],
   );
+  // Distinct model values per property rule (keyed pset::prop).
+  const valueSuggest = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const r of deferredRules) {
+      if (r.kind !== "property" || !r.prop.trim()) continue;
+      const k = `${r.pset.trim()}::${r.prop.trim()}`;
+      if (!map.has(k)) {
+        try { map.set(k, distinctFieldValues(pivotModels, r.pset, r.prop)); } catch { map.set(k, []); }
+      }
+    }
+    return map;
+  }, [deferredRules, pivotModels]);
 
   const compute = (): number[] => {
     if (!activeRules.length) return [];
@@ -92,14 +168,14 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
     return ids;
   };
 
-  const run = (isolate: boolean) => {
+  const run = (action: FilterAction) => {
     const ids = compute();
     setCount(ids.length);
-    onResult(ids, isolate);
+    onResult(ids, action);
   };
 
   const setRule = (i: number, r: Rule) => onRules(rules.map((x, k) => (k === i ? r : x)));
-  const addRule = (kind: Rule["kind"]) => onRules([...rules, kind === "type" ? { kind: "type", classes: [] } : kind === "property" ? { kind: "property", pset: "", prop: "", op: "=", value: "" } : { kind: "name", op: "contains", value: "" }]);
+  const addRule = (kind: Rule["kind"]) => onRules([...rules, freshRule(kind)]);
   const removeRule = (i: number) => onRules(rules.filter((_, k) => k !== i));
 
   const canRun = activeRules.length > 0;
@@ -118,22 +194,31 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
         </div>
         {count != null && <span className="idse-audit ok">{t("filter.matched", { n: count })}</span>}
         <span className="clash-spacer" />
-        <button className="btn secondary small" disabled={!canRun} onClick={() => run(true)}>{t("filter.isolate")}</button>
-        <button className="btn small" disabled={!canRun} onClick={() => run(false)}>{t("filter.select")}</button>
+        {count != null && (
+          <button className="btn secondary small" onClick={() => { setCount(null); onReset(); }}>{t("filter.reset")}</button>
+        )}
+        <button className="btn secondary small" disabled={!canRun} onClick={() => run("color")}>{t("filter.color")}</button>
+        <button className="btn secondary small" disabled={!canRun} onClick={() => run("hide")}>{t("filter.hide")}</button>
+        <button className="btn secondary small" disabled={!canRun} onClick={() => run("isolate")}>{t("filter.isolate")}</button>
+        <button className="btn small" disabled={!canRun} onClick={() => run("select")}>{t("filter.select")}</button>
         <button className="clash-close" onClick={onClose} title={t("common.close")} aria-label={t("common.close")}>×</button>
       </div>
 
       <div className="filter-body filter-panel-body">
         {rules.map((r, i) => (
           <div key={i} className="filter-rule">
-            <select className="filter-kind" value={r.kind} onChange={(e) => addReplace(e.target.value as Rule["kind"], i, setRule)}>
+            <select className="filter-kind" value={r.kind} onChange={(e) => setRule(i, freshRule(e.target.value as Rule["kind"]))}>
               <option value="type">{t("filter.ruleType")}</option>
+              <option value="spatial">{t("filter.ruleSpatial")}</option>
               <option value="property">{t("filter.ruleProperty")}</option>
               <option value="name">{t("filter.ruleName")}</option>
             </select>
 
             {r.kind === "type" && (
               <Chips values={r.classes} suggestions={suggest.classes} placeholder={t("filter.addClass")} onChange={(classes) => setRule(i, { kind: "type", classes })} />
+            )}
+            {r.kind === "spatial" && (
+              <SpatialChips values={r.ids} options={spatial.opts} placeholder={t("filter.addContainer")} onChange={(ids) => setRule(i, { kind: "spatial", ids })} />
             )}
             {r.kind === "property" && (
               <>
@@ -143,7 +228,12 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
                   {PROP_OPS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
                 {r.op !== "IS_NULL" && r.op !== "IS_NOT_NULL" && (
-                  <ComboInput value={r.value} placeholder={t("filter.value")} onChange={(v) => setRule(i, { ...r, value: v })} />
+                  <ComboInput
+                    value={r.value}
+                    list={valueSuggest.get(`${r.pset.trim()}::${r.prop.trim()}`)}
+                    placeholder={t("filter.value")}
+                    onChange={(v) => setRule(i, { ...r, value: v })}
+                  />
                 )}
               </>
             )}
@@ -158,6 +248,7 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
               </>
             )}
 
+            {ruleCounts[i] != null && <span className="filter-count">{t("filter.ruleCount", { n: ruleCounts[i] as number })}</span>}
             <button className="idse-spec-x" title={t("common.remove")} disabled={rules.length <= 1} onClick={() => removeRule(i)}>×</button>
           </div>
         ))}
@@ -165,6 +256,7 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
         <select className="idse-add" value="" onChange={(e) => { if (e.target.value) addRule(e.target.value as Rule["kind"]); e.target.value = ""; }}>
           <option value="">{t("filter.addRule")}</option>
           <option value="type">{t("filter.ruleType")}</option>
+          <option value="spatial">{t("filter.ruleSpatial")}</option>
           <option value="property">{t("filter.ruleProperty")}</option>
           <option value="name">{t("filter.ruleName")}</option>
         </select>
@@ -173,9 +265,14 @@ export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, o
   );
 }
 
-/** Switch a rule's kind in place (resets its fields to the new kind's defaults). */
-function addReplace(kind: Rule["kind"], i: number, setRule: (i: number, r: Rule) => void) {
-  setRule(i, kind === "type" ? { kind: "type", classes: [] } : kind === "property" ? { kind: "property", pset: "", prop: "", op: "=", value: "" } : { kind: "name", op: "contains", value: "" });
+/** A blank rule of the given kind (used for both add and kind-switch). */
+function freshRule(kind: Rule["kind"]): Rule {
+  switch (kind) {
+    case "type": return { kind: "type", classes: [] };
+    case "spatial": return { kind: "spatial", ids: [] };
+    case "property": return { kind: "property", pset: "", prop: "", op: "=", value: "" };
+    default: return { kind: "name", op: "contains", value: "" };
+  }
 }
 
 /** Themed suggestion menu, portaled to <body> with fixed positioning so it
@@ -271,6 +368,54 @@ function Chips({ values, suggestions, placeholder, onChange }: { values: string[
       />
       {open && suggestions.length > 0 && (
         <ComboMenu anchorEl={inputRef.current} query={draft} options={suggestions} exclude={values} onPick={(v) => { add(v); inputRef.current?.focus(); }} onClose={() => setOpen(false)} />
+      )}
+    </span>
+  );
+}
+
+/** Chip editor for spatial containers: like Chips, but options are {id,label}
+ *  pairs, labels keep their original case, and free text only resolves to a
+ *  known container (a made-up storey can't match anything). */
+function SpatialChips({ values, options, placeholder, onChange }: {
+  values: number[]; options: { id: number; label: string }[]; placeholder: string; onChange: (v: number[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const byLabel = useMemo(() => new Map(options.map((o) => [o.label, o.id])), [options]);
+  const byId = useMemo(() => new Map(options.map((o) => [o.id, o.label])), [options]);
+  const pick = (label: string) => {
+    const id = byLabel.get(label);
+    if (id != null && !values.includes(id)) onChange([...values, id]);
+    setDraft("");
+  };
+  return (
+    <span className="filter-chips">
+      {values.map((id) => (
+        <span key={id} className="filter-chip">{byId.get(id) ?? `#${id}`}<button onClick={() => onChange(values.filter((x) => x !== id))}>×</button></span>
+      ))}
+      <input
+        ref={inputRef}
+        value={draft} placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || !draft.trim()) return;
+          e.preventDefault();
+          const q = draft.trim().toLowerCase();
+          const m = options.find((o) => o.label.toLowerCase() === q) ?? options.find((o) => o.label.toLowerCase().includes(q));
+          if (m) pick(m.label);
+        }}
+      />
+      {open && options.length > 0 && (
+        <ComboMenu
+          anchorEl={inputRef.current}
+          query={draft}
+          options={options.map((o) => o.label)}
+          exclude={values.map((id) => byId.get(id) ?? "")}
+          onPick={(v) => { pick(v); inputRef.current?.focus(); }}
+          onClose={() => setOpen(false)}
+        />
       )}
     </span>
   );
