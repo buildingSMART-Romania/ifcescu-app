@@ -542,6 +542,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         setDock((d) => (d === "ids" ? "none" : "ids"));
       } else if (e.key === "f" || e.key === "F") {
         toggleBottom("filter");
+      } else if (e.key === "x" || e.key === "X") {
+        toggleBottom("clash");
       } else if (e.key === "o" || e.key === "O") {
         update({ viewer: { projection: projectionRef.current === "perspective" ? "orthographic" : "perspective" } });
       } else if (e.key === "/") {

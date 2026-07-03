@@ -43,6 +43,7 @@ const SHORTCUTS: { keys: string; descKey: I18nKey }[] = [
   { keys: "B", descKey: "help.shortcut.bcf" },
   { keys: "I", descKey: "help.shortcut.ids" },
   { keys: "F", descKey: "help.shortcut.filter" },
+  { keys: "X", descKey: "help.shortcut.clash" },
   { keys: "/", descKey: "help.shortcut.search" },
   { keys: "Esc", descKey: "help.shortcut.escape" },
   { keys: "Del", descKey: "help.shortcut.del" },

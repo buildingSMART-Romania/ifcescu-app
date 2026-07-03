@@ -536,6 +536,7 @@ export const ro = {
       bcf: "Comută panoul BCF",
       ids: "Comută panoul IDS",
       filter: "Deschide Filtrul",
+      clash: "Comută panoul Coliziuni",
       search: "Caută în arbore",
       escape: "Anulează comanda activă",
       del: "Șterge măsurătoarea selectată",

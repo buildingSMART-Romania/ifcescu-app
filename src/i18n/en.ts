@@ -532,6 +532,7 @@ export const en: Dict = {
       bcf: "Toggle the BCF panel",
       ids: "Toggle the IDS panel",
       filter: "Open the Filter",
+      clash: "Toggle the Clashes panel",
       search: "Search the tree",
       escape: "Cancel the active command",
       del: "Delete the selected measurement",
