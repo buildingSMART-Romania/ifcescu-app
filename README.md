@@ -126,7 +126,8 @@ switchable at runtime from a button in the top-right (the choice is remembered).
 | `E` | Toggle the attribute/property editor | `M` | Measure tool (distance) |
 | `T` | Toggle the data table | `B` | Toggle the BCF panel |
 | `I` | Toggle the IDS panel | `F` | Open the Filter |
-| `/` | Focus the tree search | `Esc` | Cancel the active command |
+| `X` | Toggle the Clashes panel | `/` | Focus the tree search |
+| `?` | Open the help / guide | `Esc` | Cancel the active command |
 | `Delete` / `Backspace` | Delete the active measurement | | |
 
 > Shortcuts are ignored while typing in an input field.
@@ -162,6 +163,14 @@ The suite lives in `tests/`:
   Always runs.
 - **`boqReport.test.ts`** — the bill-of-quantities preset builder (`boqPresetConfig`):
   groups by class → material and picks the present base quantities. Pure; always runs.
+- **`pivot.test.ts`** — the data-table aggregation engine (`buildPivot`): the five
+  aggregators (sum / avg / count / min / max), `NO_VALUE` / missing-field handling
+  (elements without a field don't corrupt sums or averages), the `distinctFieldValues`
+  cap, and `exportPivotCsv` (RFC-4180 quoting + UTF-8 BOM). Pure; always runs.
+- **`analytics.test.ts`** — the analytics helpers (`chartData`, `kpiValue`,
+  `filteredModels`, `combineFilter`): per-class aggregation with global ids, KPI counts,
+  cross-filter subsetting, and OR-within / AND-across-dimension filter combining.
+  Pure; always runs.
 - **`clash.test.ts`** — clash detection: AABB hard/clearance classification, pair dedup +
   self-exclusion, the triangle-triangle intersection test (crossing / separated / coplanar),
   narrow-phase false-positive rejection, status persistence and the async/cancel path. Pure;
@@ -172,6 +181,9 @@ The suite lives in `tests/`:
 - **`editor.test.ts`** — the same round-trip against a real IFC file. It is guarded by
   `describe.runIf(...)` and **skips** unless a sample is available; point it at one with
   `IFC_SAMPLE=<path>` (default is a local path that won't exist on most machines).
+- **`i18n.test.ts`** — RO/EN dictionary parity: asserts `ro.ts` and `en.ts` expose exactly
+  the same leaf keys in both directions and that every leaf is a non-empty string.
+  Pure; always runs.
 
 ## Configuration
 
@@ -214,7 +226,7 @@ src/
     Header, UploadPanel, Viewer, IfcTree, PropsPanel, EditPanel, GlobeViewer,
     ModelsPanel, NavCube, ViewBar, BcfPanel, IdsPanel, DataTablePanel,
     DataTableConfig, Modal, HelpModal, SettingsModal, ErrorBoundary,
-    IdsEditorModal (IDS creator), FilterModal (filter & select),
+    IdsEditorModal (IDS creator), FilterPanel (filter & select),
     AnalyticsPanel (charts dashboard — experimental), ClashPanel (clash detection)
   viewer/
     engine.ts              WebGPU engine wrapper (@ifc-lite/renderer): federated load,
@@ -236,7 +248,10 @@ src/
   settings/                app settings: singleton + React provider/hook + unit format
   i18n/                    RO/EN translations: framework-agnostic singleton +
                            typed dictionaries (ro.ts/en.ts) + React provider/hook
-  hooks/useTheme.ts        light/dark theme
+  hooks/
+    useTheme.ts            light/dark theme
+    usePersistedNumber.ts  localStorage-backed number state (panel sizes)
+    useDockResize.ts       shared drag-to-resize hook for the bottom docks
   theme/theme.css          buildingSMART palette + light/dark
 tests/                     vitest suite (see Testing)
 ```
@@ -244,9 +259,9 @@ tests/                     vitest suite (see Testing)
 ## Deployment (GitHub Pages)
 
 Because `vite.config.ts` sets `base: "./"`, the build works at any Pages path without
-changes. [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) runs `npm ci`
-+ `npm run build` and publishes `dist/` on every push to `main` (enable **Settings →
-Pages → Source: GitHub Actions**). Cesium's assets and the `@ifc-lite` WASM + geometry
+changes. [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) runs `npm ci`,
+`npm test` (the suite gates the deploy), then `npm run build` and publishes `dist/` on
+every push to `main` (enable **Settings → Pages → Source: GitHub Actions**). Cesium's assets and the `@ifc-lite` WASM + geometry
 workers are bundled by Vite at build time; the 3D viewer still needs a WebGPU-capable
 browser at runtime, but editing/export and the globe do not.
 
