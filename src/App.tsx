@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./hooks/useTheme";
 import { useI18n } from "./i18n/react";
 import { IfcEditor } from "./ifc/editor";
@@ -7,12 +7,17 @@ import type { PlacementMode } from "./geo/placement";
 import { Header } from "./components/Header";
 import { UploadPanel } from "./components/UploadPanel";
 import { Viewer } from "./components/Viewer";
-import { GlobeViewer } from "./components/GlobeViewer";
 import { HelpModal } from "./components/HelpModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { IDSValidationReport } from "./ifc/ids";
 import type { BCFProject } from "./ifc/bcf";
+
+// Cesium is ~3 MB+ — code-split it so the initial load doesn't pay for the globe
+// until the user actually opens the Glob 3D tab.
+const GlobeViewer = lazy(() =>
+  import("./components/GlobeViewer").then((m) => ({ default: m.GlobeViewer })),
+);
 
 interface Loaded {
   editor: IfcEditor;
@@ -48,6 +53,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"view" | "globe">("view");
+  // Once the globe tab has been opened, keep GlobeViewer mounted (hidden via CSS)
+  // so tab switches don't re-extract/re-place the mesh. Reset per model.
+  const [globeOpened, setGlobeOpened] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // Number of edits made to the primary IFC (drives the top-bar download button).
@@ -80,6 +88,7 @@ export default function App() {
     setExtraModels([]); // federated models belonged to the previous session
     setChangeCount(0); // edits belonged to the previous model
     setGlobeMode(null); // placeability is re-determined for the new model
+    setGlobeOpened(false); // the kept-alive globe belonged to the previous model
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // The primary model's editor lives here so edits + the download button
@@ -113,7 +122,13 @@ export default function App() {
   // Download the primary model with its edits applied (non-destructive export).
   const downloadEdited = () => {
     if (!loaded) return;
-    const out = loaded.editor.export();
+    let out: unknown;
+    try {
+      out = loaded.editor.export(); // WASM export can throw — don't fail silently
+    } catch (e: any) {
+      setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
+      return;
+    }
     const base = loaded.fileName.replace(/\.ifc$/i, "");
     const blob = new Blob([out as BlobPart], { type: "application/x-step" });
     const url = URL.createObjectURL(blob);
@@ -162,7 +177,7 @@ export default function App() {
             </button>
             <button
               className={"tab" + (tab === "globe" ? " active" : "")}
-              onClick={() => setTab("globe")}
+              onClick={() => { setTab("globe"); setGlobeOpened(true); }}
               disabled={globeMode === "none"}
               title={globeMode === "none" ? t("app.globeDisabledTitle") : t("app.tabGlobe")}
             >
@@ -180,20 +195,21 @@ export default function App() {
             </button>
           )}
           {loaded && <UploadPanel onFile={onFile} variant="button" />}
-          <button className="help-toggle" onClick={() => setShowHelp(true)} title={t("help.buttonTitle")}>
+          <button className="help-toggle" onClick={() => setShowHelp(true)} title={t("help.buttonTitle")} aria-label={t("help.buttonTitle")}>
             ?
           </button>
-          <button className="settings-toggle" onClick={() => setShowSettings(true)} title={t("settings.buttonTitle")}>
+          <button className="settings-toggle" onClick={() => setShowSettings(true)} title={t("settings.buttonTitle")} aria-label={t("settings.buttonTitle")}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
           </button>
           <button
             className="lang-toggle"
             onClick={() => setLang(lang === "ro" ? "en" : "ro")}
             title={t("app.langToggleTitle")}
+            aria-label={t("app.langToggleTitle")}
           >
             {lang === "ro" ? "EN" : "RO"}
           </button>
-          <button className="theme-toggle" onClick={toggleTheme} title={theme === "dark" ? t("app.themeLight") : t("app.themeDark")}>
+          <button className="theme-toggle" onClick={toggleTheme} title={theme === "dark" ? t("app.themeLight") : t("app.themeDark")} aria-label={theme === "dark" ? t("app.themeLight") : t("app.themeDark")}>
             {theme === "dark" ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
             ) : (
@@ -222,29 +238,55 @@ export default function App() {
           </div>
         )}
 
+        {/* With a model on screen the empty-state alert above doesn't render, so
+            errors (failed export / failed federated add) surface as a toast. */}
+        {loaded && error && (
+          <div className="alert error app-error-toast" role="alert">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} title={t("common.close")} aria-label={t("common.close")}>×</button>
+          </div>
+        )}
+
         {loaded && (
           <ErrorBoundary key={loaded.fileName} title={t("app.crashTitle")} body={t("app.crashBody")} reloadLabel={t("app.reload")}>
-            {tab === "view" ? (
+            {/* Both panes stay mounted; CSS hides the inactive one. Unmounting the
+                Viewer would dispose the WebGPU engine and lose selection/hidden
+                sets/section/measurements/camera on every tab switch. */}
+            <div className={"tab-pane" + (tab === "view" ? "" : " tab-hidden")}>
               <Viewer
-            editor={loaded.editor}
-            onChangeCount={setChangeCount}
-            bytes={loaded.bytes}
-            fileName={loaded.fileName}
-            theme={theme}
-            georef={georef}
-            favorites={favorites}
-            onToggleFavorite={toggleFavorite}
-            bcfProject={bcfProject}
-            onBcfProject={setBcfProject}
-            idsReport={idsReport}
-            onIdsReport={setIdsReport}
-            models={viewerModels}
-            onAddModel={onAddModel}
-            onRemoveModel={onRemoveModel}
-            onPlacementMode={setGlobeMode}
+                editor={loaded.editor}
+                onChangeCount={setChangeCount}
+                bytes={loaded.bytes}
+                fileName={loaded.fileName}
+                theme={theme}
+                georef={georef}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                bcfProject={bcfProject}
+                onBcfProject={setBcfProject}
+                idsReport={idsReport}
+                onIdsReport={setIdsReport}
+                models={viewerModels}
+                onAddModel={onAddModel}
+                onRemoveModel={onRemoveModel}
+                onPlacementMode={setGlobeMode}
               />
-            ) : (
-              <GlobeViewer bytes={loaded.bytes} georef={georef} theme={theme} />
+            </div>
+            {globeOpened && (
+              <div className={"tab-pane" + (tab === "globe" ? "" : " tab-hidden")}>
+                <Suspense
+                  fallback={
+                    <div className="loading-card">
+                      <span className="spinner" />
+                      <div className="loading-text">
+                        <div className="loading-title">{t("common.loading")}</div>
+                      </div>
+                    </div>
+                  }
+                >
+                  <GlobeViewer bytes={loaded.bytes} georef={georef} theme={theme} />
+                </Suspense>
+              </div>
             )}
           </ErrorBoundary>
         )}

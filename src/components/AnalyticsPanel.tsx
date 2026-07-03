@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import { useI18n } from "../i18n/react";
 import { ToolIcon } from "./icons";
+import { usePersistedNumber } from "../hooks/usePersistedNumber";
 import { discoverFields, rgbaCss, type PivotModel, type Rgba } from "../viewer/pivot";
 import {
   chartData, stackedData, histogramData, kpiValue, combineFilter, filteredModels, selectExcept,
@@ -53,7 +54,7 @@ export function AnalyticsPanel({ models, onFilter, onClose }: Props) {
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [colorDimKey, setColorDimKey] = useState<string | null>(null);
   // Dock height (px) — bottom dock so the 3D model stays visible above it.
-  const [dockH, setDockH] = useState(380);
+  const [dockH, setDockH] = usePersistedNumber("dockH:analytics", 380);
   const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
     e.preventDefault();
     const sy = e.clientY, h0 = dockH;

@@ -413,6 +413,8 @@ export const en: Dict = {
   tree: {
     collapseAll: "Collapse all",
     expandAll: "Expand all",
+    collapse: "Collapse",
+    expand: "Expand",
     hide: "Hide",
     show: "Show",
     searchPlaceholder: "Search by name or class...",

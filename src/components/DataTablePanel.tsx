@@ -1,4 +1,4 @@
-import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DataTableConfig } from "./DataTableConfig";
 import {
   buildPivot,
@@ -14,6 +14,7 @@ import {
 } from "../viewer/pivot";
 import { boqPresetConfig, printBoqReport } from "../viewer/boqReport";
 import { useI18n } from "../i18n/react";
+import { usePersistedNumber } from "../hooks/usePersistedNumber";
 
 /** Monochrome line icons for the table actions (match the app's SVG style). */
 function DtIcon({ kind }: { kind: "color" | "boq" | "organize" | "report" | "csv" | "table" }) {
@@ -45,7 +46,7 @@ interface Props {
  *  configured via a popup. Vertically resizable; coexists with the right dock. */
 export function DataTablePanel({ models, fileName, config, onConfigChange, onSelectRows, onColorByGroup, onClose }: Props) {
   const { t, lang } = useI18n();
-  const [height, setHeight] = useState(300);
+  const [height, setHeight] = usePersistedNumber("dockH:table", 300);
   const [showConfig, setShowConfig] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [colorOn, setColorOn] = useState(false);
@@ -70,12 +71,17 @@ export function DataTablePanel({ models, fileName, config, onConfigChange, onSel
     return { overrides, swatches };
   }, [result]);
 
-  // Push the override map to the viewer when active; clear it when off or unmounted.
+  // Push the override map to the viewer when active. No cleanup between re-runs:
+  // flushing null before the new map caused two GPU uploads + a color flash on
+  // every pivot recompute. Clear only on toggle-off (the effect body) and unmount.
   useEffect(() => {
     onColorByGroup(colorOn ? coloring.overrides : null);
-    return () => onColorByGroup(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorOn, coloring]);
+  useEffect(() => {
+    return () => onColorByGroup(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggle = (key: string) =>
     setExpanded((s) => {
@@ -84,15 +90,16 @@ export function DataTablePanel({ models, fileName, config, onConfigChange, onSel
       return next;
     });
 
-  const startResize = (e: ReactMouseEvent) => {
+  // Pointer events (not mouse) so touch/pen can resize too — matches the other docks.
+  const startResize = (e: { preventDefault: () => void }) => {
     e.preventDefault();
-    const onMove = (ev: MouseEvent) => setHeight(Math.min(window.innerHeight - 160, Math.max(140, window.innerHeight - ev.clientY - 16)));
+    const onMove = (ev: PointerEvent) => setHeight(Math.min(window.innerHeight - 160, Math.max(140, window.innerHeight - ev.clientY - 16)));
     const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
 
   // Flatten the visible (expanded) rows into <tr>s, depth-first.
@@ -132,20 +139,21 @@ export function DataTablePanel({ models, fileName, config, onConfigChange, onSel
 
   return (
     <section className="datatable-panel" style={{ height }}>
-      <div className="datatable-resize" onMouseDown={startResize} title={t("viewer.resize")} />
+      <div className="datatable-resize" onPointerDown={startResize} title={t("viewer.resize")} />
       <div className="datatable-head">
         <span className="datatable-title"><DtIcon kind="table" /> {t("dataTable.title")}</span>
         <div className="datatable-actions">
           <button
             className={"ids-icon" + (colorOn ? " active" : "")}
             title={colorOn ? t("dataTable.colorOff") : t("dataTable.colorOn")}
+            aria-label={colorOn ? t("dataTable.colorOff") : t("dataTable.colorOn")}
             onClick={() => setColorOn((c) => !c)}
           ><DtIcon kind="color" /></button>
-          <button className="ids-icon" title={t("dataTable.boqPresetTitle")} onClick={() => onConfigChange(boqPresetConfig(fields))}><DtIcon kind="boq" /></button>
-          <button className="ids-icon" title={t("dataTable.organize")} onClick={() => setShowConfig(true)}><DtIcon kind="organize" /></button>
-          <button className="ids-icon" title={t("dataTable.reportTitle")} onClick={() => printBoqReport(result, config, fields, fileName)}><DtIcon kind="report" /></button>
-          <button className="ids-icon" title={t("dataTable.exportCsv")} onClick={() => exportPivotCsv(result, config, fields, fileName)}><DtIcon kind="csv" /></button>
-          <button className="ids-icon" title={t("common.close")} onClick={onClose}>×</button>
+          <button className="ids-icon" title={t("dataTable.boqPresetTitle")} aria-label={t("dataTable.boqPresetTitle")} onClick={() => onConfigChange(boqPresetConfig(fields))}><DtIcon kind="boq" /></button>
+          <button className="ids-icon" title={t("dataTable.organize")} aria-label={t("dataTable.organize")} onClick={() => setShowConfig(true)}><DtIcon kind="organize" /></button>
+          <button className="ids-icon" title={t("dataTable.reportTitle")} aria-label={t("dataTable.reportTitle")} onClick={() => printBoqReport(result, config, fields, fileName)}><DtIcon kind="report" /></button>
+          <button className="ids-icon" title={t("dataTable.exportCsv")} aria-label={t("dataTable.exportCsv")} onClick={() => exportPivotCsv(result, config, fields, fileName)}><DtIcon kind="csv" /></button>
+          <button className="ids-icon" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}>×</button>
         </div>
       </div>
 

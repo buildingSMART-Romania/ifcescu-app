@@ -5,18 +5,28 @@ import type { PivotModel } from "../viewer/pivot";
 import { IfcEditor, type FilterOperator } from "../ifc/editor";
 import { modelCatalog } from "../ifc/idsCatalog";
 import { ToolIcon } from "./icons";
+import { usePersistedNumber } from "../hooks/usePersistedNumber";
 
 type NameOp = "contains" | "equals" | "regex";
-type Rule =
+export type FilterRule =
   | { kind: "type"; classes: string[] }
   | { kind: "property"; pset: string; prop: string; op: FilterOperator; value: string }
   | { kind: "name"; op: NameOp; value: string };
+type Rule = FilterRule;
+
+/** The initial rule set for a fresh filter (one empty type rule). */
+export const DEFAULT_FILTER_RULES: FilterRule[] = [{ kind: "type", classes: [] }];
 
 const PROP_OPS: FilterOperator[] = ["=", "!=", ">", "<", ">=", "<=", "CONTAINS", "STARTS_WITH", "ENDS_WITH", "IS_NULL", "IS_NOT_NULL"];
 
 interface Props {
   editor: IfcEditor;
   pivotModels: PivotModel[];
+  /** Rules are owned by the Viewer so they survive closing/reopening the dock. */
+  rules: FilterRule[];
+  onRules: (rules: FilterRule[]) => void;
+  combinator: "AND" | "OR";
+  onCombinator: (c: "AND" | "OR") => void;
   /** Apply the matched ids: select (isolate=false) or isolate (isolate=true) in 3D. */
   onResult: (ids: number[], isolate: boolean) => void;
   onClose: () => void;
@@ -25,12 +35,10 @@ interface Props {
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Rule-based select/isolate, docked at the bottom like the Table/Clash panels. */
-export function FilterPanel({ editor, pivotModels, onResult, onClose }: Props) {
+export function FilterPanel({ editor, pivotModels, rules, onRules, combinator, onCombinator, onResult, onClose }: Props) {
   const { t } = useI18n();
-  const [rules, setRules] = useState<Rule[]>([{ kind: "type", classes: [] }]);
-  const [combinator, setCombinator] = useState<"AND" | "OR">("AND");
   const [count, setCount] = useState<number | null>(null);
-  const [dockH, setDockH] = useState(280);
+  const [dockH, setDockH] = usePersistedNumber("dockH:filter", 280);
 
   const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
     e.preventDefault();
@@ -90,9 +98,9 @@ export function FilterPanel({ editor, pivotModels, onResult, onClose }: Props) {
     onResult(ids, isolate);
   };
 
-  const setRule = (i: number, r: Rule) => setRules((rs) => rs.map((x, k) => (k === i ? r : x)));
-  const addRule = (kind: Rule["kind"]) => setRules((rs) => [...rs, kind === "type" ? { kind: "type", classes: [] } : kind === "property" ? { kind: "property", pset: "", prop: "", op: "=", value: "" } : { kind: "name", op: "contains", value: "" }]);
-  const removeRule = (i: number) => setRules((rs) => rs.filter((_, k) => k !== i));
+  const setRule = (i: number, r: Rule) => onRules(rules.map((x, k) => (k === i ? r : x)));
+  const addRule = (kind: Rule["kind"]) => onRules([...rules, kind === "type" ? { kind: "type", classes: [] } : kind === "property" ? { kind: "property", pset: "", prop: "", op: "=", value: "" } : { kind: "name", op: "contains", value: "" }]);
+  const removeRule = (i: number) => onRules(rules.filter((_, k) => k !== i));
 
   const canRun = activeRules.length > 0;
 
@@ -105,8 +113,8 @@ export function FilterPanel({ editor, pivotModels, onResult, onClose }: Props) {
           <strong>{t("filter.title")}</strong>
         </span>
         <div className="seg">
-          <button className={combinator === "AND" ? "active" : ""} onClick={() => setCombinator("AND")}>{t("filter.and")}</button>
-          <button className={combinator === "OR" ? "active" : ""} onClick={() => setCombinator("OR")}>{t("filter.or")}</button>
+          <button className={combinator === "AND" ? "active" : ""} onClick={() => onCombinator("AND")}>{t("filter.and")}</button>
+          <button className={combinator === "OR" ? "active" : ""} onClick={() => onCombinator("OR")}>{t("filter.or")}</button>
         </div>
         {count != null && <span className="idse-audit ok">{t("filter.matched", { n: count })}</span>}
         <span className="clash-spacer" />

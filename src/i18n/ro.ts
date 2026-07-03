@@ -417,6 +417,8 @@ export const ro = {
   tree: {
     collapseAll: "Restrânge tot",
     expandAll: "Extinde tot",
+    collapse: "Restrânge",
+    expand: "Extinde",
     hide: "Ascunde",
     show: "Afișează",
     searchPlaceholder: "Caută după nume sau clasă...",

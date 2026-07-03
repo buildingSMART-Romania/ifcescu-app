@@ -1,7 +1,8 @@
-import { type ReactNode, type CSSProperties, type MouseEvent as ReactMouseEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type CSSProperties, type PointerEvent as ReactPointerEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { IfcDataStore } from "@ifc-lite/parser";
 import type { ViewerCameraState } from "@ifc-lite/bcf";
 import type { Theme } from "../hooks/useTheme";
+import { usePersistedNumber } from "../hooks/usePersistedNumber";
 import type { GeorefInfo } from "../ifc/editor";
 import { detectSchema, type IfcSchema } from "../ifc/store";
 import { IfcEditor, type SelectionDetail } from "../ifc/editor";
@@ -26,7 +27,7 @@ import { groupColor, type PivotConfig, type PivotModel, type Rgba } from "../vie
 import { runIdsValidation } from "../ifc/ids";
 import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
 import { IdsEditorModal } from "./IdsEditorModal";
-import { FilterPanel } from "./FilterPanel";
+import { FilterPanel, DEFAULT_FILTER_RULES, type FilterRule } from "./FilterPanel";
 // Lazy so Recharts only loads when the analytics panel is opened.
 const AnalyticsPanel = lazy(() => import("./AnalyticsPanel"));
 // Lazy so the clash detection panel (and its compute) load only when opened.
@@ -35,6 +36,9 @@ import { createBCFFromIDSReport, addTopicToProject, extractViewpointState, globa
 
 // Non-conforming IDS elements are painted this red in the 3D view.
 const IDS_FAIL_COLOR: [number, number, number, number] = [0.85, 0.13, 0.13, 1];
+
+// The mutually-exclusive bottom panels (one open at a time).
+type BottomDock = "none" | "filter" | "clash" | "analytics" | "table";
 
 /** A locally-saved viewpoint: camera pose + user visibility (B4). */
 interface Viewpoint {
@@ -140,8 +144,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const { t, lang } = useI18n();
   const { settings, update } = useSettings();
   const analyticsEnabled = settings.experimental.analytics;
-  const [analyticsOpen, setAnalyticsOpen] = useState(false);
-  const [clashOpen, setClashOpen] = useState(false);
+  // The bottom area is single-occupancy: Filter / Clash / Analytics (absolute
+  // .an-dock overlays) and Table (a flow panel) share it, so exactly one is open
+  // at a time — opening one closes the others. The right-side IDS/BCF docks are
+  // tracked separately (see `dock`) and can coexist with a bottom panel.
+  const [bottomDock, setBottomDock] = useState<BottomDock>("none");
+  const bottomDockRef = useRef(bottomDock);
+  bottomDockRef.current = bottomDock;
+  const toggleBottom = (d: BottomDock) => setBottomDock((c) => (c === d ? "none" : d));
   // Mirrors the current projection so the empty-deps keydown handler reads a fresh
   // value when toggling with "O" (avoids a stale closure).
   const projectionRef = useRef(settings.viewer.projection);
@@ -198,11 +208,15 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [editDetail, setEditDetail] = useState<SelectionDetail | null>(null);
   // Only the primary model is editable; its id (federation offset 0).
   const primaryId = useMemo(() => models.find((m) => m.primary)?.id ?? models[0]?.id, [models]);
-  const [propsWidth, setPropsWidth] = useState(340);
-  const [treeWidth, setTreeWidth] = useState(300);
+  const [propsWidth, setPropsWidth] = usePersistedNumber("propsWidth", 340);
+  const [treeWidth, setTreeWidth] = usePersistedNumber("treeWidth", 300);
   // Vertical size of the "Modele" panel. null = auto (CSS-capped at 40%); once the
   // user drags the divider it becomes a fixed pixel height.
-  const [modelsHeight, setModelsHeight] = useState<number | null>(null);
+  const [modelsHeight, setModelsHeight] = usePersistedNumber("modelsHeight", null);
+  // Filter dock rules live here (not in FilterPanel) so closing/reopening the
+  // dock — or opening another dock — doesn't discard a built-up rule set.
+  const [filterRules, setFilterRules] = useState<FilterRule[]>(DEFAULT_FILTER_RULES);
+  const [filterCombinator, setFilterCombinator] = useState<"AND" | "OR">("AND");
   // Per-model forests (one MODEL root per model). Built by rebuildForests().
   const [spatialRoots, setSpatialRoots] = useState<TreeNode[] | null>(null);
   const [classRoots, setClassRoots] = useState<TreeNode[] | null>(null);
@@ -224,8 +238,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ready, setReady] = useState(false);
-  // The right dock hosts the IDS, BCF or Filter panel (toolbar toggles; mutually exclusive).
-  const [dock, setDock] = useState<"none" | "ids" | "bcf" | "filter">("none");
+  // The right dock hosts the IDS or BCF panel (toolbar toggles; mutually exclusive).
+  // Filter lives in `bottomDock` — it renders as a bottom .an-dock, not on the right.
+  const [dock, setDock] = useState<"none" | "ids" | "bcf">("none");
+  // Mirror for the empty-deps keydown handler (Escape closes the open dock).
+  const dockRef = useRef(dock);
+  dockRef.current = dock;
   const [idsEditorOpen, setIdsEditorOpen] = useState(false);
   // Model-info panel is open by default on load; it can be closed (×) or toggled
   // from the toolbar. A selection still takes over the right panel with props.
@@ -242,9 +260,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // B4: locally-saved viewpoints (camera + visibility), persisted per file.
   const [viewpoints, setViewpoints] = useState<Viewpoint[]>([]);
   const vpSeq = useRef(0);
-  // Bottom data-table (pivot). Independent of the right dock so they can coexist;
-  // the config persists while the panel is toggled off/on.
-  const [tableOpen, setTableOpen] = useState(false);
+  // Bottom data-table (pivot) config — persists while the panel (bottomDock ===
+  // "table") is toggled off/on.
   const [pivotConfig, setPivotConfig] = useState<PivotConfig>({
     // Default grouping = Model → IFC class. "model" is auto-ignored when only one
     // model is loaded (it's not in the discovered fields then), so it falls back
@@ -484,9 +501,20 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Don't let viewer shortcuts fire behind an open modal (Settings/Help/Filter/IDS editor).
       if (document.querySelector(".modal-backdrop")) return;
+      // Nor while the viewer pane is hidden (Glob 3D tab active — the Viewer stays
+      // mounted for state, but its shortcuts must not act invisibly).
+      if (hostRef.current && hostRef.current.offsetParent === null) return;
       if (e.key === "Escape") {
-        chooseMeasure("none");
-        if (sectionRef.current) toggleSection();
+        // Cancel an active tool first; then the bottom panel; then the right dock
+        // — the same Escape-to-close the modals already have.
+        if (measureModeRef.current !== "none" || sectionRef.current) {
+          chooseMeasure("none");
+          if (sectionRef.current) toggleSection();
+        } else if (bottomDockRef.current !== "none") {
+          setBottomDock("none");
+        } else if (dockRef.current !== "none") {
+          setDock("none");
+        }
       } else if (e.key === "h" || e.key === "H") {
         toggleHideSelection();
       } else if (e.key === "a" || e.key === "A") {
@@ -504,13 +532,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       } else if (e.key === "m" || e.key === "M") {
         chooseMeasure("length");
       } else if (e.key === "t" || e.key === "T") {
-        setTableOpen((o) => !o);
+        toggleBottom("table");
       } else if (e.key === "b" || e.key === "B") {
         setDock((d) => (d === "bcf" ? "none" : "bcf"));
       } else if (e.key === "i" || e.key === "I") {
         setDock((d) => (d === "ids" ? "none" : "ids"));
       } else if (e.key === "f" || e.key === "F") {
-        setDock((d) => (d === "filter" ? "none" : "filter"));
+        toggleBottom("filter");
       } else if (e.key === "o" || e.key === "O") {
         update({ viewer: { projection: projectionRef.current === "perspective" ? "orthographic" : "perspective" } });
       } else if (e.key === "/") {
@@ -547,12 +575,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
   // Color overrides have two drivers sharing one channel: the data-table
   // "color by group" map (takes priority) and the IDS red-paint of non-conforming
-  // elements. Re-applied whenever either changes.
-  useEffect(() => {
-    const eng = engineRef.current;
-    if (!eng || !ready) return;
+  // elements. The base layer is memoized separately from the selection fill so a
+  // plain selection click doesn't rebuild the whole map (a full GPU re-upload).
+  const baseColorMap = useMemo(() => {
     // Base layer priority: data-table group colors > color-by-model > IDS red.
     const map = new Map<number, [number, number, number, number]>();
+    if (!ready) return map;
     if (groupColorMap && groupColorMap.size) {
       for (const [id, c] of groupColorMap) map.set(id, c);
     } else if (!baseColorsOff && colorByModel) {
@@ -565,15 +593,30 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       for (const spec of idsReport.specificationResults)
         for (const e of spec.entityResults) if (!e.passed) map.set(e.expressId, IDS_FAIL_COLOR);
     }
+    return map;
+    // `models` so color-by-model picks up newly federated models (modelStoresRef is a ref).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupColorMap, colorByModel, idsReport, baseColorsOff, ready, models]);
+  // The last map actually pushed to the GPU — skip re-uploads when nothing changed
+  // (e.g. selection clicks while the fill tint is off, the default).
+  const lastColorMapRef = useRef<Map<number, [number, number, number, number]> | null>(null);
+  useEffect(() => {
+    const eng = engineRef.current;
+    if (!eng || !ready) return;
     // Selection fill tints the selected elements on top (when a fill color is set).
     const fill = settings.viewer.selection.fill;
+    let map = baseColorMap;
     if (fill && selectedIds.size) {
+      map = new Map(baseColorMap);
       const c = hexToRgba(fill);
       for (const id of selectedIds) map.set(id, c);
     }
+    if (map === lastColorMapRef.current) return; // same base, no fill → GPU already up to date
+    if (!map.size && !lastColorMapRef.current?.size) { lastColorMapRef.current = map; return; }
+    lastColorMapRef.current = map;
     if (map.size) eng.setColorOverrideMap(map);
     else eng.clearColorOverrides();
-  }, [groupColorMap, colorByModel, idsReport, baseColorsOff, ready, selectedIds, settings.viewer.selection.fill]);
+  }, [baseColorMap, ready, selectedIds, settings.viewer.selection.fill]);
 
   // A fresh IDS run should reveal its coloring even after a previous reset.
   useEffect(() => { if (idsReport) setBaseColorsOff(false); }, [idsReport]);
@@ -928,19 +971,20 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     setSection(false);
   };
 
-  const startPropsResize = (e: ReactMouseEvent) => {
+  // Pointer events (not mouse) on all panel resizers so touch/pen work too.
+  const startPropsResize = (e: ReactPointerEvent) => {
     e.preventDefault();
     // Width is measured from the panel's right edge (which stays fixed as the
     // panel grows leftward), NOT the window edge — otherwise an open IDS/BCF
     // dock sitting to the right throws the math off by its width.
     const right = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect().right;
-    const onMove = (ev: MouseEvent) => setPropsWidth(Math.min(640, Math.max(260, right - ev.clientX)));
+    const onMove = (ev: PointerEvent) => setPropsWidth(Math.min(640, Math.max(260, right - ev.clientX)));
     const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
 
   // Drive the 3D scene from the analytics dashboard: isolate + color the matched
@@ -1018,30 +1062,30 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     // No saved camera (e.g. IDS topics) -> frame the isolated/selected element(s).
     if (!state.camera) eng.zoomToSelection(visIds.length ? visIds : selIds);
   };
-  const startModelsResize = (e: ReactMouseEvent) => {
+  const startModelsResize = (e: ReactPointerEvent) => {
     e.preventDefault();
     // The panel sits directly before the divider; measure from its top edge so the
     // height tracks the cursor regardless of the toolbar/header above it.
     const panel = (e.currentTarget as HTMLElement).previousElementSibling as HTMLElement | null;
     const top = panel?.getBoundingClientRect().top ?? 0;
-    const onMove = (ev: MouseEvent) =>
+    const onMove = (ev: PointerEvent) =>
       setModelsHeight(Math.min(window.innerHeight * 0.75, Math.max(80, ev.clientY - top)));
     const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
-  const startTreeResize = (e: ReactMouseEvent) => {
+  const startTreeResize = (e: ReactPointerEvent) => {
     e.preventDefault();
-    const onMove = (ev: MouseEvent) => setTreeWidth(Math.min(560, Math.max(200, ev.clientX - 12)));
+    const onMove = (ev: PointerEvent) => setTreeWidth(Math.min(560, Math.max(200, ev.clientX - 12)));
     const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
 
   const selArr = () => [...selectedIds];
@@ -1071,7 +1115,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           onColorByModel={(v) => { setColorByModel(v); if (v) setBaseColorsOff(false); }}
           height={modelsHeight}
         />
-        <div className="models-resize" onMouseDown={startModelsResize} title={t("viewer.resizeModels")} />
+        <div className="models-resize" onPointerDown={startModelsResize} title={t("viewer.resizeModels")} />
         <div className="tree-tabs">
           <button className={"tree-tab" + (treeView === "spatial" ? " active" : "")} onClick={() => setTreeView("spatial")}>{t("viewer.treeSpatial")}</button>
           <button className={"tree-tab" + (treeView === "class" ? " active" : "")} onClick={() => setTreeView("class")}>{t("viewer.treeClass")}</button>
@@ -1092,7 +1136,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         ) : (
           <div className="ifctree-empty">{t("viewer.treeLoading")}</div>
         )}
-        <div className="tree-resize" onMouseDown={startTreeResize} title={t("viewer.resize")} />
+        <div className="tree-resize" onPointerDown={startTreeResize} title={t("viewer.resize")} />
       </aside>
 
       <div className="viewer-main" ref={mainRef}>
@@ -1183,7 +1227,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <button className={"vbtn" + (dock === "filter" ? " active" : "")} onClick={() => setDock((d) => (d === "filter" ? "none" : "filter"))} title={t("filter.title")}>
+          <button className={"vbtn" + (bottomDock === "filter" ? " active" : "")} onClick={() => toggleBottom("filter")} title={t("filter.title")}>
             <span className="ic"><ToolIcon kind="filter" /></span>
             <span>{t("filter.tab")}</span>
           </button>
@@ -1198,20 +1242,20 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             <span>BCF</span>
           </button>
 
-          <button className={"vbtn" + (tableOpen ? " active" : "")} onClick={() => setTableOpen((o) => !o)}>
+          <button className={"vbtn" + (bottomDock === "table" ? " active" : "")} onClick={() => toggleBottom("table")}>
             <span className="ic"><ToolIcon kind="table" /></span>
             <span>{t("dataTable.tab")}</span>
           </button>
 
           {analyticsEnabled && (
-            <button className={"vbtn" + (analyticsOpen ? " active" : "")} onClick={() => setAnalyticsOpen((o) => !o)} title={t("analytics.title")}>
+            <button className={"vbtn" + (bottomDock === "analytics" ? " active" : "")} onClick={() => toggleBottom("analytics")} title={t("analytics.title")}>
               <span className="ic"><ToolIcon kind="analytics" /></span>
               <span>{t("analytics.tab")}</span>
             </button>
           )}
 
 
-          <button className={"vbtn" + (clashOpen ? " active" : "")} onClick={() => setClashOpen((o) => !o)} disabled={pivotModels.length === 0} title={t("clash.title")}>
+          <button className={"vbtn" + (bottomDock === "clash" ? " active" : "")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")}>
             <span className="ic"><ToolIcon kind="clash" /></span>
             <span>{t("clash.tab")}</span>
           </button>
@@ -1226,20 +1270,24 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
         <div className="viewer-host" ref={hostRef} style={{ position: "relative" }}>
           <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
-          {analyticsEnabled && analyticsOpen && ready && pivotModels.length > 0 && (
+          {analyticsEnabled && bottomDock === "analytics" && ready && pivotModels.length > 0 && (
             <Suspense fallback={<div className="an-dock" style={{ height: 380 }} />}>
-              <AnalyticsPanel models={pivotModels} onFilter={onAnalyticsFilter} onClose={() => setAnalyticsOpen(false)} />
+              <AnalyticsPanel models={pivotModels} onFilter={onAnalyticsFilter} onClose={() => setBottomDock("none")} />
             </Suspense>
           )}
-          {dock === "filter" && (
+          {bottomDock === "filter" && (
             <FilterPanel
               editor={editor}
               pivotModels={pivotModels}
+              rules={filterRules}
+              onRules={setFilterRules}
+              combinator={filterCombinator}
+              onCombinator={setFilterCombinator}
               onResult={(ids, isolate) => { if (isolate) isolateIds(ids); else selectIds(ids); }}
-              onClose={() => setDock("none")}
+              onClose={() => setBottomDock("none")}
             />
           )}
-          {clashOpen && ready && pivotModels.length > 0 && engineRef.current && (
+          {bottomDock === "clash" && ready && pivotModels.length > 0 && engineRef.current && (
             <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
               <ClashPanel
                 engine={engineRef.current}
@@ -1250,7 +1298,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
                 fileName={fileName}
                 onShow={onClashShow}
                 onReset={onClashReset}
-                onClose={() => setClashOpen(false)}
+                onClose={() => setBottomDock("none")}
               />
             </Suspense>
           )}
@@ -1301,7 +1349,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           )}
         </div>
 
-        {tableOpen && ready && pivotModels.length > 0 && (
+        {bottomDock === "table" && ready && pivotModels.length > 0 && (
           <DataTablePanel
             models={pivotModels}
             fileName={fileName}
@@ -1309,14 +1357,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             onConfigChange={setPivotConfig}
             onSelectRows={(ids) => selectIds(ids)}
             onColorByGroup={setGroupColorMap}
-            onClose={() => setTableOpen(false)}
+            onClose={() => setBottomDock("none")}
           />
         )}
       </div>
 
       {(propGroups || showInfo) && (
       <aside className="props-panel" style={{ width: propsWidth }}>
-        <div className="props-resize" onMouseDown={startPropsResize} title={t("viewer.resize")} />
+        <div className="props-resize" onPointerDown={startPropsResize} title={t("viewer.resize")} />
         <div className="props-head">
           <span>{propGroups ? t("viewer.propsTitle") : t("viewer.modelInfoTitle")}</span>
           <span className="props-close" onClick={() => (propGroups ? clearSelection() : setShowInfo(false))} title={t("viewer.deselect")}>×</span>

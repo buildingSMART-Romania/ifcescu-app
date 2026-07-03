@@ -51,8 +51,12 @@ export function ModelsPanel({ models, busy, onToggleVisible, onRemove, onAddMode
             <span className="models-status" title={t("models.loaded")} />
             <span
               className="models-eye"
+              role="button"
+              tabIndex={0}
               title={m.visible ? t("models.hide") : t("models.show")}
+              aria-label={m.visible ? t("models.hide") : t("models.show")}
               onClick={() => onToggleVisible(m.id, !m.visible)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleVisible(m.id, !m.visible); } }}
             >
               <UiIcon kind={m.visible ? "eye" : "eyeOff"} />
             </span>
@@ -61,7 +65,15 @@ export function ModelsPanel({ models, busy, onToggleVisible, onRemove, onAddMode
             </span>
             {m.schema && <span className="models-badge" title={t("models.schemaBadge")}>{m.schema}</span>}
             {!m.primary && (
-              <span className="models-rm" title={t("models.remove")} onClick={() => onRemove(m.id)}>×</span>
+              <span
+                className="models-rm"
+                role="button"
+                tabIndex={0}
+                title={t("models.remove")}
+                aria-label={t("models.remove")}
+                onClick={() => onRemove(m.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRemove(m.id); } }}
+              >×</span>
             )}
           </div>
         ))}

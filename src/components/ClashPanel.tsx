@@ -13,6 +13,7 @@ import {
   expressIdsToGlobalIds, type BCFProject,
 } from "../ifc/bcf";
 import { formatLength } from "../settings/format";
+import { usePersistedNumber } from "../hooks/usePersistedNumber";
 
 // Highlight colors for a selected clash pair (Set A element / Set B element).
 const RED: Rgba = [0.86, 0.15, 0.15, 1];
@@ -126,7 +127,7 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
   const [progress, setProgress] = useState(0);
   const [hideClosed, setHideClosed] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [dockH, setDockH] = useState(360);
+  const [dockH, setDockH] = usePersistedNumber("dockH:clash", 360);
   const abortRef = useRef<{ aborted: boolean } | null>(null);
 
   const startResizeDock = (e: { clientY: number; preventDefault: () => void }) => {
@@ -316,7 +317,7 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
         <button className="btn secondary small" onClick={exportBcf} disabled={!visibleRows.length}>{t("clash.exportBcf")}</button>
         <button className="btn secondary small" onClick={exportCsv} disabled={!visibleRows.length}>{t("clash.exportCsv")}</button>
         <button className="btn secondary small" onClick={reset}>{t("clash.reset")}</button>
-        <button className="clash-close" onClick={onClose} title={t("common.close")}>x</button>
+        <button className="clash-close" onClick={onClose} title={t("common.close")} aria-label={t("common.close")}>x</button>
       </div>
 
       <div className="clash-config">

@@ -141,7 +141,15 @@ export function IfcTree({ roots, expanded, onToggle, onCollapseAll, onExpandAll,
           onChange={(e) => onQuery(e.target.value)}
         />
         {query && (
-          <span className="tree-search-clear" title={t("tree.searchClear")} onClick={() => onQuery("")}>×</span>
+          <span
+            className="tree-search-clear"
+            role="button"
+            tabIndex={0}
+            title={t("tree.searchClear")}
+            aria-label={t("tree.searchClear")}
+            onClick={() => onQuery("")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onQuery(""); } }}
+          >×</span>
         )}
       </div>
       <div className="ifctree-toolbar">
@@ -195,26 +203,38 @@ function Node({
       >
         <span
           className="tcaret"
+          role="button"
+          tabIndex={hasChildren ? 0 : -1}
+          aria-label={open ? t("tree.collapse") : t("tree.expand")}
+          aria-expanded={hasChildren ? open : undefined}
           onClick={() => hasChildren && onToggle(node.expressID)}
+          onKeyDown={(e) => { if (hasChildren && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(node.expressID); } }}
           style={{ visibility: hasChildren ? "visible" : "hidden" }}
         >
           {open ? "▾" : "▸"}
         </span>
         <span
           className="teye"
+          role="button"
+          tabIndex={node.ids.length ? 0 : -1}
           title={anyVisible ? t("tree.hide") : t("tree.show")}
+          aria-label={anyVisible ? t("tree.hide") : t("tree.show")}
           onClick={(e) => {
             e.stopPropagation();
             if (node.ids.length) onToggleVisible(node.ids, !anyVisible);
           }}
+          onKeyDown={(e) => { if (node.ids.length && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onToggleVisible(node.ids, !anyVisible); } }}
           style={{ opacity: node.ids.length ? 1 : 0.25 }}
         >
           <UiIcon kind={anyVisible ? "eye" : "eyeOff"} />
         </span>
         <span
           className={"tlabel" + (hasChildren ? " tbranch" : "")}
+          role="button"
+          tabIndex={node.ids.length ? 0 : -1}
           title={label}
           onClick={() => node.ids.length && onSelect(node.ids, node.expressID)}
+          onKeyDown={(e) => { if (node.ids.length && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onSelect(node.ids, node.expressID); } }}
         >
           {node.type === "MODEL" && (
             <svg className="tmodel-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" /></svg>

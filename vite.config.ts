@@ -14,7 +14,11 @@ export default defineConfig({
     react(),
     // Copies Cesium's static assets (Workers/Assets/Widgets/ThirdParty) into the
     // build and sets window.CESIUM_BASE_URL so the globe view (GlobeViewer) works.
-    cesium(),
+    // rebuildCesium bundles Cesium into the module graph instead of a blocking
+    // <script src="cesium/Cesium.js"> tag in index.html — combined with the
+    // lazy() GlobeViewer import in App.tsx, the multi-MB Cesium code downloads
+    // only when the Glob 3D tab is first opened.
+    cesium({ rebuildCesium: true }),
   ],
   worker: { format: "es" },
   // @ifc-lite ships its own wasm + workers via `new URL(..., import.meta.url)`.
