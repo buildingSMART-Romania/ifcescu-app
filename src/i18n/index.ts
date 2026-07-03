@@ -12,6 +12,15 @@ const KEY = "ifc-app-lang";
 const dicts: Record<Lang, unknown> = { ro, en };
 
 function initialLang(): Lang {
+  // A ?lang= URL param wins (per-link override for shareable links, e.g.
+  // ?model=...&lang=en). Not persisted, so a later reload without the param
+  // falls back to the user's saved preference.
+  try {
+    const q = new URLSearchParams(window.location.search).get("lang");
+    if (q === "en" || q === "ro") return q;
+  } catch {
+    /* no window/URL (SSR/tests) — ignore */
+  }
   try {
     const v = localStorage.getItem(KEY);
     if (v === "en" || v === "ro") return v;
