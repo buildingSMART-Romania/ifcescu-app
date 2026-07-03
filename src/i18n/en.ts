@@ -422,9 +422,7 @@ export const en: Dict = {
     noResults: "No results",
   },
   viewbar: {
-    home: "Home (primary model)",
-    zoomIn: "Zoom in",
-    zoomOut: "Zoom out",
+    projection: "Perspective / orthographic projection",
     fullscreen: "Fullscreen",
     exitFullscreen: "Exit fullscreen",
   },

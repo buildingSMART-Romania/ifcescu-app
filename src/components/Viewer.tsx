@@ -1311,11 +1311,17 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           )}
           {ready && settings.viewer.viewBar && (
             <ViewBar
-              onHome={() => engineRef.current?.homeView()}
               onFit={() => engineRef.current?.fit()}
-              onZoomIn={() => engineRef.current?.zoomBy(-200)}
-              onZoomOut={() => engineRef.current?.zoomBy(200)}
+              onFrame={() => { if (selectedIds.size) engineRef.current?.zoomToSelection(selectedIds); }}
+              onHide={toggleHideSelection}
+              onIsolate={() => { if (selectedIds.size) isolateIds([...selectedIds]); }}
+              onShowAll={showAll}
+              onMeasure={() => chooseMeasure("length")}
+              onSection={toggleSection}
               onFullscreen={toggleFullscreen}
+              hasSelection={selectedIds.size > 0}
+              measuring={measureMode !== "none"}
+              section={section}
               fullscreen={fullscreen}
             />
           )}

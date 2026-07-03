@@ -56,7 +56,9 @@ export function UiIcon({ kind }: { kind: "trash" | "eye" | "eyeOff" | "area" | "
     case "eye": return <svg {...A}><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.6" /></svg>;
     case "eyeOff": return <svg {...A}><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.6" /><path d="M3 3l18 18" /></svg>;
     case "area": return <svg {...A}><rect x="3" y="3" width="18" height="18" rx="2" /></svg>;
-    case "fit": return <svg {...A}><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3" /></svg>;
+    // Zoom-to-fit: four arrows converging on the center (distinct from the
+    // fullscreen glyph's outward corner brackets).
+    case "fit": return <svg {...A}><path d="M4 4l4 4M8 5V8H5M20 4l-4 4M16 5V8h3M4 20l4-4M8 19v-3H5M20 20l-4-4M16 19v-3h3" /></svg>;
     case "upload": return <svg {...A}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></svg>;
     case "warn": return <svg {...A}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>;
   }

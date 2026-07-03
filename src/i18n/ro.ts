@@ -426,9 +426,7 @@ export const ro = {
     noResults: "Niciun rezultat",
   },
   viewbar: {
-    home: "Acasă (model principal)",
-    zoomIn: "Mărește",
-    zoomOut: "Micșorează",
+    projection: "Proiecție perspectivă / ortografică",
     fullscreen: "Ecran complet",
     exitFullscreen: "Ieși din ecran complet",
   },
