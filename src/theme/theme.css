@@ -283,7 +283,7 @@ body {
   color: var(--muted);
   font-size: 0.92rem;
 }
-.topbar-tabs .tab:hover {
+.topbar-tabs .tab:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text);
 }
@@ -292,6 +292,21 @@ body {
   border-color: rgba(var(--accent-rgb), 0.35);
   color: var(--accent);
   box-shadow: none;
+}
+.topbar-tabs .tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--muted);
+  background: var(--surface);
+  border-color: var(--border);
+}
+/* Narrow windows: drop the absolute centering so the tabs flow inline between
+   the logo and the right-hand actions instead of overlapping them. */
+@media (max-width: 780px) {
+  .topbar-tabs {
+    position: static;
+    transform: none;
+  }
 }
 
 /* Cards / sections */
@@ -457,6 +472,11 @@ table.summary td.k {
 .dropzone:hover {
   border-color: var(--accent);
   color: var(--text);
+}
+.dropzone.dragover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 /* Viewer toolbar (grouped, Trimble-style) */
@@ -1134,7 +1154,7 @@ table.summary td.k {
   background: var(--surface-2);
 }
 .trow.selected {
-  background: rgba(0, 179, 230, 0.2);
+  background: rgba(var(--accent-rgb), 0.2);
 }
 .tcaret {
   width: 14px;
@@ -1952,44 +1972,7 @@ table.summary td.k {
   margin-top: 2px;
 }
 
-/* ---- In-viewer BCF drawer ---------------------------------------------- */
-.bcf-drawer {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 290px;
-  max-height: calc(100% - 24px);
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
-  z-index: 6;
-  overflow: hidden;
-}
-.bcf-drawer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  font-weight: 600;
-  font-size: 0.86rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-}
-.bcf-close {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 1.2rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.bcf-drawer-body {
-  padding: 12px;
-  overflow-y: auto;
-}
+/* ---- BCF panel form ---------------------------------------------------- */
 .bcf-form {
   display: flex;
   flex-direction: column;
@@ -2267,6 +2250,25 @@ table.summary td.k {
   background: var(--bg);
   border-color: var(--border);
   color: var(--text);
+}
+/* Labeled "Create IDS" action: text button, stands out from the icon-only row. */
+.ids-icon.ids-create {
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ids-icon.ids-create:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ids-create-plus {
+  font-size: 1rem;
+  line-height: 1;
 }
 .ids-icon.active {
   background: rgba(var(--accent-rgb), 0.12);
@@ -2733,14 +2735,14 @@ table.summary td.k {
 .idse-audit.warn { color: #d98330; }
 .idse-audit.ok { color: #18a06a; }
 
-/* Filter & select modal */
-.filter-body .field > span { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
-.filter-body .field input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.85rem; }
-.filter-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.filter-head .field { margin-bottom: 0; }
-.filter-head .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.filter-head .seg button { border: none; background: transparent; color: var(--text); padding: 5px 12px; cursor: pointer; font-size: 0.85rem; }
-.filter-head .seg button.active { background: var(--accent); color: var(--on-accent); }
+/* Filter & select (docked bottom panel, like Table/Clash) */
+.filter-dock { height: 280px; }
+.filter-topbar { gap: 12px; }
+.filter-title { display: inline-flex; align-items: center; gap: 6px; }
+.filter-panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+.filter-topbar .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.filter-topbar .seg button { border: none; background: transparent; color: var(--text); padding: 5px 12px; cursor: pointer; font-size: 0.85rem; }
+.filter-topbar .seg button.active { background: var(--accent); color: var(--on-accent); }
 .filter-rule { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .filter-rule select, .filter-rule > input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.85rem; }
 .filter-field { flex: 1 1 150px; min-width: 120px; }

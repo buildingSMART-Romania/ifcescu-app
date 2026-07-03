@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { Modal } from "./Modal";
 import { useI18n } from "../i18n/react";
 import { type IfcSchemaVersion } from "@ifc-lite/data";
 import type { PivotModel } from "../viewer/pivot";
@@ -25,7 +24,8 @@ interface Props {
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export function FilterModal({ editor, schema, pivotModels, onResult, onClose }: Props) {
+/** Rule-based select/isolate, docked on the right like the IDS/BCF panels. */
+export function FilterPanel({ editor, schema, pivotModels, onResult, onClose }: Props) {
   const { t } = useI18n();
   const [rules, setRules] = useState<Rule[]>([{ kind: "type", classes: [] }]);
   const [combinator, setCombinator] = useState<"AND" | "OR">("AND");
@@ -93,28 +93,24 @@ export function FilterModal({ editor, schema, pivotModels, onResult, onClose }: 
   const canRun = activeRules.length > 0;
 
   return (
-    <Modal
-      className="modal-wide"
-      title={t("filter.title")}
-      onClose={onClose}
-      footer={
-        <div className="idse-foot">
-          {count != null && <span className="idse-audit ok">{t("filter.matched", { n: count })}</span>}
-          <span style={{ flex: 1 }} />
-          <button className="btn secondary" onClick={onClose}>{t("common.close")}</button>
-          <button className="btn secondary" disabled={!canRun} onClick={() => run(true)}>{t("filter.isolate")}</button>
-          <button className="btn" disabled={!canRun} onClick={() => run(false)}>{t("filter.select")}</button>
+    <div className="an-dock filter-dock">
+      <div className="an-bar filter-topbar">
+        <span className="filter-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z" /></svg>
+          <strong>{t("filter.title")}</strong>
+        </span>
+        <div className="seg">
+          <button className={combinator === "AND" ? "active" : ""} onClick={() => setCombinator("AND")}>{t("filter.and")}</button>
+          <button className={combinator === "OR" ? "active" : ""} onClick={() => setCombinator("OR")}>{t("filter.or")}</button>
         </div>
-      }
-    >
-      <div className="filter-body">
-        <div className="filter-head">
-          <div className="seg">
-            <button className={combinator === "AND" ? "active" : ""} onClick={() => setCombinator("AND")}>{t("filter.and")}</button>
-            <button className={combinator === "OR" ? "active" : ""} onClick={() => setCombinator("OR")}>{t("filter.or")}</button>
-          </div>
-        </div>
+        {count != null && <span className="idse-audit ok">{t("filter.matched", { n: count })}</span>}
+        <span className="clash-spacer" />
+        <button className="btn secondary small" disabled={!canRun} onClick={() => run(true)}>{t("filter.isolate")}</button>
+        <button className="btn small" disabled={!canRun} onClick={() => run(false)}>{t("filter.select")}</button>
+        <button className="clash-close" onClick={onClose} title={t("common.close")} aria-label={t("common.close")}>×</button>
+      </div>
 
+      <div className="filter-body filter-panel-body">
         {rules.map((r, i) => (
           <div key={i} className="filter-rule">
             <select className="filter-kind" value={r.kind} onChange={(e) => addReplace(e.target.value as Rule["kind"], i, setRule)}>
@@ -160,7 +156,7 @@ export function FilterModal({ editor, schema, pivotModels, onResult, onClose }: 
           <option value="name">{t("filter.ruleName")}</option>
         </select>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -204,4 +200,4 @@ function Chips({ values, suggestions, placeholder, onChange }: { values: string[
   );
 }
 
-export default FilterModal;
+export default FilterPanel;

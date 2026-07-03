@@ -3,6 +3,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useI18n } from "./i18n/react";
 import { IfcEditor } from "./ifc/editor";
 import type { GeorefInfo } from "./ifc/editor";
+import type { PlacementMode } from "./geo/placement";
 import { Header } from "./components/Header";
 import { UploadPanel } from "./components/UploadPanel";
 import { Viewer } from "./components/Viewer";
@@ -41,6 +42,9 @@ export default function App() {
   // The model's embedded georef (IfcMapConversion), read at load. The globe tab
   // re-places the model from it.
   const [georef, setGeoref] = useState<GeorefInfo | null>(null);
+  // Whether the primary model can be placed on the globe. null = not yet known
+  // (Viewer reports it after load). "none" disables the Glob 3D tab.
+  const [globeMode, setGlobeMode] = useState<PlacementMode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"view" | "globe">("view");
@@ -75,6 +79,7 @@ export default function App() {
     setBcfProject(null);
     setExtraModels([]); // federated models belonged to the previous session
     setChangeCount(0); // edits belonged to the previous model
+    setGlobeMode(null); // placeability is re-determined for the new model
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // The primary model's editor lives here so edits + the download button
@@ -83,6 +88,8 @@ export default function App() {
       const g = editor.getGeoref();
       setLoaded({ editor, georef: g, bytes, fileName: file.name });
       setGeoref(g);
+      // globeMode stays null until the Viewer reports it (a georef alone doesn't
+      // mean a real location — a zero/degenerate map conversion isn't placeable).
       setTab("view");
     } catch (e: any) {
       setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
@@ -93,8 +100,13 @@ export default function App() {
 
   // Federation: add/remove non-primary models (3D viewer only).
   const onAddModel = async (file: File) => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    setExtraModels((p) => [...p, { id: `extra-${++extraSeq.current}`, bytes, fileName: file.name }]);
+    setError(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      setExtraModels((p) => [...p, { id: `extra-${++extraSeq.current}`, bytes, fileName: file.name }]);
+    } catch (e: any) {
+      setError(t("app.invalidIfc", { detail: e?.message ? `(${e.message})` : "" }));
+    }
   };
   const onRemoveModel = (id: string) => setExtraModels((p) => p.filter((m) => m.id !== id));
 
@@ -148,7 +160,12 @@ export default function App() {
             <button className={"tab" + (tab === "view" ? " active" : "")} onClick={() => setTab("view")}>
               <TabIcon kind="view" /><span>{t("app.tabView")}</span>
             </button>
-            <button className={"tab" + (tab === "globe" ? " active" : "")} onClick={() => setTab("globe")}>
+            <button
+              className={"tab" + (tab === "globe" ? " active" : "")}
+              onClick={() => setTab("globe")}
+              disabled={globeMode === "none"}
+              title={globeMode === "none" ? t("app.globeDisabledTitle") : t("app.tabGlobe")}
+            >
               <TabIcon kind="globe" /><span>{t("app.tabGlobe")}</span>
             </button>
           </nav>
@@ -224,6 +241,7 @@ export default function App() {
             models={viewerModels}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
+            onPlacementMode={setGlobeMode}
               />
             ) : (
               <GlobeViewer bytes={loaded.bytes} georef={georef} theme={theme} />

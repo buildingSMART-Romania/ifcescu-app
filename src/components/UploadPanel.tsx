@@ -19,6 +19,7 @@ export function UploadPanel({ onFile, variant = "drop" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loadingSample, setLoadingSample] = useState(false);
   const [sampleError, setSampleError] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const pick = (files: FileList | null) => {
     const f = files?.[0];
@@ -70,11 +71,14 @@ export function UploadPanel({ onFile, variant = "drop" }: Props) {
       <h2>IFCescu</h2>
       <p className="upload-sub">{t("upload.sub")}</p>
       <div
-        className="dropzone"
+        className={"dropzone" + (dragOver ? " dragover" : "")}
         onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => e.preventDefault()}
+        onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
         onDrop={(e) => {
           e.preventDefault();
+          setDragOver(false);
           pick(e.dataTransfer.files);
         }}
       >

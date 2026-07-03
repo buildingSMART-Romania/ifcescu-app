@@ -34,15 +34,19 @@ interface Props {
 export function NavCube({ getTransform, onFace, onOrbit }: Props) {
   const { t } = useI18n();
   const cubeRef = useRef<HTMLDivElement>(null);
+  // Read getTransform through a ref so the rAF loop starts once on mount and is
+  // never torn down/restarted by re-renders (getTransform is a fresh fn each render).
+  const getTransformRef = useRef(getTransform);
+  getTransformRef.current = getTransform;
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      if (cubeRef.current) cubeRef.current.style.transform = getTransform();
+      if (cubeRef.current) cubeRef.current.style.transform = getTransformRef.current();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [getTransform]);
+  }, []);
 
   // Drag vs click: a gesture that moves past a few px orbits and suppresses the
   // click; a still click snaps to the face view.

@@ -21,6 +21,7 @@ export const ro = {
   app: {
     tabView: "3D",
     tabGlobe: "Glob 3D",
+    globeDisabledTitle: "Modelul trebuie georeferențiat în EPSG:3844 (Stereo 70) sau să aibă coordonate reale pentru a fi afișat pe glob.",
     download: "Descarcă",
     downloadTitle: "Descarcă IFC-ul cu modificările aplicate",
     editedSuffix: "editat",
@@ -120,6 +121,7 @@ export const ro = {
     },
   },
   dataTable: {
+    tab: "Tabel",
     title: "Tabel de date",
     selectIn3d: "Selectează în 3D",
     colorOff: "Oprește colorarea în 3D",
@@ -227,6 +229,7 @@ export const ro = {
     fail: "Neconform",
     na: "N/A",
     title: "Validare IDS",
+    create: "Creează IDS",
     upload: "Încarcă fișier IDS",
     clearReport: "Șterge raportul",
     noApplicable: "Nicio entitate aplicabilă în model.",

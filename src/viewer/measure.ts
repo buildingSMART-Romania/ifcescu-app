@@ -275,7 +275,7 @@ export class MeasureTool {
       const s = modelToStereo70(this.georef, ifc);
       const dp = coordDecimals();
       const txt = this.georef
-        ? `E ${s.x.toFixed(dp)}  N ${s.y.toFixed(dp)}\nH ${s.z.toFixed(dp)} m`
+        ? `X ${s.x.toFixed(dp)}  Y ${s.y.toFixed(dp)}\nZ ${s.z.toFixed(dp)} m`
         : `X ${ifc.x.toFixed(dp)}\nY ${ifc.y.toFixed(dp)}\nZ ${ifc.z.toFixed(dp)}`;
       this.label(txt, scr[0].x, scr[0].y);
     }

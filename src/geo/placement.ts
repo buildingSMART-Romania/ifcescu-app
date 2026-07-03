@@ -59,12 +59,14 @@ export function computePlacement(georef: GeorefInfo | null, bbox: Bbox, grid: Ge
   const cy = (bbox.minY + bbox.maxY) / 2;
   const cz = (bbox.minZ + bbox.maxZ) / 2;
 
-  let mode: PlacementMode;
-  if (georef) mode = "georef";
-  else if (inRomania(cx, cy)) mode = "real";
-  else mode = "none";
-
   const anchor = modelToStereo70(georef, cx, cy, cz);
+
+  // Placeable only when the resulting anchor is a real Romanian location. A model
+  // with a degenerate/zero IfcMapConversion (or coords outside Romania) lands at
+  // null island — treat it as "none" so the globe is disabled, not misplaced.
+  let mode: PlacementMode;
+  if (!inRomania(anchor.e, anchor.n)) mode = "none";
+  else mode = georef ? "georef" : "real";
 
   if (mode === "none") {
     return {

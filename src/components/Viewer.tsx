@@ -9,6 +9,7 @@ import { EditPanel } from "./EditPanel";
 import { ViewerEngine } from "../viewer/engine";
 import { buildTree, buildClassTree, buildMaterialTree, getSelectionProps, gatherFileInfo, offsetTree, modelRootNode } from "../viewer/model";
 import { MeasureTool, type MeasureMode } from "../viewer/measure";
+import { computePlacement, type PlacementMode } from "../geo/placement";
 import { IfcTree, defaultNodeOpen, nodeLabel, type TreeNode } from "./IfcTree";
 import { PropAccordion, FileInfoPanel, type PropGroup, type FileInfo } from "./PropsPanel";
 import { useI18n } from "../i18n/react";
@@ -24,7 +25,7 @@ import { groupColor, type PivotConfig, type PivotModel, type Rgba } from "../vie
 import { runIdsValidation } from "../ifc/ids";
 import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
 import { IdsEditorModal } from "./IdsEditorModal";
-import { FilterModal } from "./FilterModal";
+import { FilterPanel } from "./FilterPanel";
 // Lazy so Recharts only loads when the analytics panel is opened.
 const AnalyticsPanel = lazy(() => import("./AnalyticsPanel"));
 // Lazy so the clash detection panel (and its compute) load only when opened.
@@ -65,6 +66,8 @@ interface Props {
   models: ViewerModelInput[];
   onAddModel: (file: File) => void;
   onRemoveModel: (id: string) => void;
+  /** Report whether the primary model can be placed on the globe (drives the Glob 3D button). */
+  onPlacementMode?: (mode: PlacementMode) => void;
 }
 
 export interface ViewerModelInput {
@@ -90,7 +93,7 @@ function hexToRgba(hex: string): [number, number, number, number] {
 }
 
 const sectionCtlStyle: CSSProperties = {
-  position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 6,
+  position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 9,
   display: "flex", alignItems: "center", gap: 14, padding: "8px 14px",
   background: "rgba(20,20,24,0.86)", color: "#fff", borderRadius: 8,
   boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
@@ -173,7 +176,7 @@ function treeMeasureCtx(): CanvasRenderingContext2D | null {
   return _treeMeasureCtx;
 }
 
-export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, favorites, onToggleFavorite, bcfProject, onBcfProject, idsReport, onIdsReport, models, onAddModel, onRemoveModel }: Props) {
+export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, favorites, onToggleFavorite, bcfProject, onBcfProject, idsReport, onIdsReport, models, onAddModel, onRemoveModel, onPlacementMode }: Props) {
   const { t, lang } = useI18n();
   const { settings, update } = useSettings();
   const analyticsEnabled = settings.experimental.analytics;
@@ -207,10 +210,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // The owning model + local id of the (single) current selection, for editing.
   const editTargetRef = useRef<{ modelId: string; localId: number } | null>(null);
 
-  // Status is tracked (drives nothing visible now — the overlay was removed) but
-  // kept so the existing setStatus call sites stay valid.
-  const [, setStatus] = useState("Se inițializează vizualizatorul…");
   const [measureMode, setMeasureMode] = useState<MeasureMode>("none");
+  // Mirror the mode in a ref so the empty-deps keydown handler (which captures
+  // chooseMeasure once) always toggles against the CURRENT mode, not the initial.
+  const measureModeRef = useRef(measureMode);
+  measureModeRef.current = measureMode;
   const [snapOpts, setSnapOpts] = useState({ ...settings.viewer.snap });
   const toggleSnap = (k: "vertex" | "midpoint" | "edge" | "face") =>
     setSnapOpts((s) => {
@@ -260,10 +264,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ready, setReady] = useState(false);
-  // The right dock hosts the IDS or BCF panel (toolbar toggles).
-  const [dock, setDock] = useState<"none" | "ids" | "bcf">("none");
+  // The right dock hosts the IDS, BCF or Filter panel (toolbar toggles; mutually exclusive).
+  const [dock, setDock] = useState<"none" | "ids" | "bcf" | "filter">("none");
   const [idsEditorOpen, setIdsEditorOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   // Model-info panel is open by default on load; it can be closed (×) or toggled
   // from the toolbar. A selection still takes over the right panel with props.
   const [showInfo, setShowInfo] = useState(true);
@@ -369,7 +372,6 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         await engine.init();
         engine.resize();
         if (disposed) return;
-        setStatus("Se încarcă modelul IFC…");
         // Load the PRIMARY model; federated extras are added by the diff effect.
         const primary = models.find((m) => m.primary) ?? models[0];
         const { store, offset, localIDs, globalIDs } = await engine.addModel(primary.id, primary.bytes, primary.fileName, { fitView: true });
@@ -394,10 +396,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         setFileInfo(
           gatherFileInfo(store, globalIDs.length, bytes.length, fileName, detectSchema(bytes), georefRef.current, centroid),
         );
-        setStatus("Model încărcat • orbit: stânga • pan: dreapta/mijloc • zoom: scroll • Esc: anulează");
+        // Tell App whether this model can be placed on the globe. Uses the same
+        // computePlacement logic as the globe: placeable only when the anchor is a
+        // real Romanian location (a zero/degenerate georef → "none").
+        const pMode = computePlacement(georefRef.current, { minX: centroid.x, minY: centroid.y, minZ: centroid.z, maxX: centroid.x, maxY: centroid.y, maxZ: centroid.z }, null).mode;
+        onPlacementMode?.(pMode);
         setReady(true);
       } catch (e: any) {
-        if (!disposed) setStatus("Eroare la încărcarea modelului: " + (e?.message ?? e));
+        if (!disposed) console.error("Viewer: failed to load model", e);
       }
     })();
 
@@ -407,6 +413,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       ro.disconnect();
       measureRef.current?.dispose();
       engine.dispose();
+      // Detach the native host handlers wired in wireEvents (they close over refs
+      // we're nulling; leaving them attached could fire during teardown).
+      host.onclick = null;
+      host.ondblclick = null;
+      host.onmousemove = null;
       measureRef.current = null;
       engineRef.current = null;
       delete (window as any).__engine;
@@ -505,16 +516,17 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     else mainRef.current?.requestFullscreen?.();
   };
 
-  // Keyboard: Esc cancels; H hide/restore selection; Z zoom extents; F frame selection.
+  // Keyboard: Esc cancels; H hide/restore selection; Z zoom extents; C frame selection; F filter.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Don't let viewer shortcuts fire behind an open modal (Settings/Help/Filter/IDS editor).
+      if (document.querySelector(".modal-backdrop")) return;
       if (e.key === "Escape") {
         chooseMeasure("none");
         if (sectionRef.current) toggleSection();
-        setStatus("Comandă anulată (Esc).");
       } else if (e.key === "h" || e.key === "H") {
         toggleHideSelection();
       } else if (e.key === "a" || e.key === "A") {
@@ -538,7 +550,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       } else if (e.key === "i" || e.key === "I") {
         setDock((d) => (d === "ids" ? "none" : "ids"));
       } else if (e.key === "f" || e.key === "F") {
-        setFilterOpen(true);
+        setDock((d) => (d === "filter" ? "none" : "filter"));
       } else if (e.key === "o" || e.key === "O") {
         update({ viewer: { projection: projectionRef.current === "perspective" ? "orthographic" : "perspective" } });
       } else if (e.key === "/") {
@@ -915,33 +927,24 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const toggleHideSelection = () => {
     if (selectedRef.current.size) {
       hideSelection();
-      setStatus("Element(e) ascuns(e) (H). Apăsați H din nou pentru a le reafișa.");
     } else if (lastHiddenRef.current.length) {
       showIds(lastHiddenRef.current);
       lastHiddenRef.current = [];
-      setStatus("Element(e) reafișat(e) (H).");
     }
   };
 
   // --- tools --------------------------------------------------------------
   const chooseMeasure = (mode: MeasureMode) => {
-    const next = measureMode === mode ? "none" : mode;
+    const next = measureModeRef.current === mode ? "none" : mode;
     setMeasureMode(next);
     measureRef.current?.setMode(next);
     // Measurement and an active section coexist — do NOT reset the section here.
-    setStatus(
-      next === "length" ? "Lungime: click pe 2 puncte"
-        : next === "point" ? "Punct: click pentru coordonate"
-          : next === "area" ? "Arie: click pe vârfuri, dublu-click pentru a închide"
-            : "Măsurare dezactivată",
-    );
   };
 
   const toggleSection = () => {
     const on = !sectionRef.current;
     sectionRef.current = on;
     setSection(on);
-    setStatus(on ? "Secțiune: dublu-click pe o față pentru a crea planul" : "Secțiune dezactivată");
   };
 
   // Double-click a face → section plane aligned to that face (normal = face
@@ -958,7 +961,6 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     setSection(true);
     setSecPos(pos);
     setSecFlip(false);
-    setStatus("Secțiune creată din față • mută cu slider-ul • „Inversează” pentru cealaltă parte");
   };
 
   const clearSections = () => {
@@ -1172,7 +1174,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               <span className="ic"><VisIcon kind="isolate" /></span><span>{t("viewer.isolateSel")}</span><span className="vmenu-key">I</span>
             </button>
             <button className="vmenu-item" onClick={() => { if (selectedRef.current.size) engineRef.current?.zoomToSelection(selectedRef.current); }}>
-              <span className="ic"><VisIcon kind="frame" /></span><span>{t("viewer.frameSel")}</span><span className="vmenu-key">F</span>
+              <span className="ic"><VisIcon kind="frame" /></span><span>{t("viewer.frameSel")}</span><span className="vmenu-key">C</span>
             </button>
             <div className="vmenu-sep" />
             <button className="vmenu-item" onClick={showAll}><span className="ic"><VisIcon kind="show" /></span><span>{t("viewer.showAll")}</span></button>
@@ -1221,7 +1223,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <button className="vbtn" onClick={() => setFilterOpen(true)} title={t("filter.title")}>
+          <button className={"vbtn" + (dock === "filter" ? " active" : "")} onClick={() => setDock((d) => (d === "filter" ? "none" : "filter"))} title={t("filter.title")}>
             <span className="ic"><ToolIcon kind="filter" /></span>
             <span>{t("filter.tab")}</span>
           </button>
@@ -1238,7 +1240,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <button className={"vbtn" + (tableOpen ? " active" : "")} onClick={() => setTableOpen((o) => !o)}>
             <span className="ic"><ToolIcon kind="table" /></span>
-            <span>Tabel</span>
+            <span>{t("dataTable.tab")}</span>
           </button>
 
           {analyticsEnabled && (
@@ -1268,6 +1270,15 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             <Suspense fallback={<div className="an-dock" style={{ height: 380 }} />}>
               <AnalyticsPanel models={pivotModels} onFilter={onAnalyticsFilter} onClose={() => setAnalyticsOpen(false)} />
             </Suspense>
+          )}
+          {dock === "filter" && (
+            <FilterPanel
+              editor={editor}
+              schema={detectSchema(bytes) as any}
+              pivotModels={pivotModels}
+              onResult={(ids, isolate) => { if (isolate) isolateIds(ids); else selectIds(ids); }}
+              onClose={() => setDock("none")}
+            />
           )}
           {clashOpen && ready && pivotModels.length > 0 && engineRef.current && (
             <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
@@ -1429,16 +1440,6 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           initialDoc={idsReport?.document ?? null}
           onValidate={validateAuthoredIds}
           onClose={() => setIdsEditorOpen(false)}
-        />
-      )}
-
-      {filterOpen && (
-        <FilterModal
-          editor={editor}
-          schema={detectSchema(bytes) as any}
-          pivotModels={pivotModels}
-          onResult={(ids, isolate) => { if (isolate) isolateIds(ids); else selectIds(ids); }}
-          onClose={() => setFilterOpen(false)}
         />
       )}
 

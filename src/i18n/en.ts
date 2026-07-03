@@ -17,6 +17,7 @@ export const en: Dict = {
   app: {
     tabView: "3D",
     tabGlobe: "3D Globe",
+    globeDisabledTitle: "The model must be georeferenced in EPSG:3844 (Stereo 70) or have real coordinates to be shown on the globe.",
     download: "Download",
     downloadTitle: "Download the IFC with your edits applied",
     editedSuffix: "edited",
@@ -116,6 +117,7 @@ export const en: Dict = {
     },
   },
   dataTable: {
+    tab: "Table",
     title: "Data table",
     selectIn3d: "Select in 3D",
     colorOff: "Stop 3D coloring",
@@ -223,6 +225,7 @@ export const en: Dict = {
     fail: "Fail",
     na: "N/A",
     title: "IDS validation",
+    create: "Create IDS",
     upload: "Upload IDS file",
     clearReport: "Clear report",
     noApplicable: "No applicable entity in the model.",

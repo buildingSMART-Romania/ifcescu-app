@@ -151,8 +151,8 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
         <span className="ids-head-title">📋 {t("ids.title")}</span>
         <div className="ids-head-actions">
           {onOpenEditor && (
-            <button className="ids-icon" title={t("idsEditor.title")} onClick={onOpenEditor}>
-              ✎
+            <button className="ids-icon ids-create" title={t("idsEditor.title")} onClick={onOpenEditor}>
+              <span className="ids-create-plus">+</span>{t("ids.create")}
             </button>
           )}
           <button className="ids-icon" title={t("ids.upload")} onClick={() => inputRef.current?.click()} disabled={validating}>

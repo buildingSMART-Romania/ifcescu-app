@@ -210,6 +210,7 @@ export function GlobeViewer({ bytes, georef }: Props) {
       }
       viewerRef.current = null;
       satLayerRef.current = null;
+      if ((window as any).__cesium === viewer) delete (window as any).__cesium;
     };
   }, [bytes, georef]);
 
