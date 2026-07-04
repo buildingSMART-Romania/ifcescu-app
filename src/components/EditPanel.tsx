@@ -25,12 +25,16 @@ interface Row {
   isEnum?: boolean;
   orig: string;
   isNew?: boolean;
+  /** Marked for deletion — applied on Save (click again to undo). */
+  deleted?: boolean;
 }
 interface Group {
   kind: "attribute" | "pset" | "quantity";
   name: string;
   rows: Row[];
   isNew?: boolean;
+  /** Whole set marked for deletion — applied on Save. */
+  deleted?: boolean;
 }
 
 // Property-type options offered for pset rows (covers the common IFC value types).
@@ -145,6 +149,23 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
   const setRow = (gi: number, ri: number, patch: Partial<Row>) =>
     setGroups((gs) => gs.map((g, i) => (i !== gi ? g : { ...g, rows: g.rows.map((r, j) => (j !== ri ? r : { ...r, ...patch })) })));
 
+  // Mark a saved row for deletion (toggle = undo); rows never saved just vanish.
+  const deleteRow = (gi: number, ri: number) =>
+    setGroups((gs) => gs.map((g, i) => {
+      if (i !== gi) return g;
+      const row = g.rows[ri];
+      return row.isNew
+        ? { ...g, rows: g.rows.filter((_, j) => j !== ri) }
+        : { ...g, rows: g.rows.map((r, j) => (j !== ri ? r : { ...r, deleted: !r.deleted })) };
+    }));
+
+  // Mark a whole pset for deletion (toggle = undo); never-saved psets just vanish.
+  const deleteGroup = (gi: number) =>
+    setGroups((gs) => {
+      const g = gs[gi];
+      return g.isNew ? gs.filter((_, i) => i !== gi) : gs.map((x, i) => (i !== gi ? x : { ...x, deleted: !x.deleted }));
+    });
+
   // Append one official property (from the pset's standard definition) to a group.
   const addOfficialProp = (gi: number, propName: string) => {
     const g = groups[gi];
@@ -162,8 +183,17 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
 
   const save = () => {
     for (const g of groups) {
+      // A pset marked for deletion drops entirely; its row edits are moot.
+      if (g.kind === "pset" && g.deleted) {
+        editor.removePropertySet(id, g.name);
+        continue;
+      }
       for (const r of g.rows) {
         if (r.readonly || !r.name) continue;
+        if (r.deleted) {
+          if (g.kind === "pset" && !r.isNew) editor.removeProperty(id, g.name, r.name);
+          continue;
+        }
         const changed = r.isNew ? r.value.trim() !== "" : r.value !== r.orig;
         if (!changed) continue;
         if (g.kind === "attribute") {
@@ -184,10 +214,20 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
   return (
     <div className="edit-panel">
       {groups.map((g, gi) => (
-        <div className="edit-group" key={`${g.kind}:${g.name}:${gi}`}>
+        <div className={"edit-group" + (g.deleted ? " edit-deleted" : "")} key={`${g.kind}:${g.name}:${gi}`}>
           <div className="edit-group-head">
             <span className="edit-group-name">{g.name}</span>
-            {g.kind === "pset" && (() => {
+            {g.kind === "pset" && (
+              <button
+                className="edit-mini ghost edit-del"
+                title={g.deleted ? t("edit.undoDelete") : t("edit.deletePset")}
+                aria-label={g.deleted ? t("edit.undoDelete") : t("edit.deletePset")}
+                onClick={() => deleteGroup(gi)}
+              >
+                {g.deleted ? "↺" : "×"}
+              </button>
+            )}
+            {g.kind === "pset" && !g.deleted && (() => {
               // Only the pset's official buildingSMART properties not already present.
               const taken = new Set(g.rows.map((r) => r.name));
               const avail = (catalog?.get(g.name)?.properties ?? []).filter((p) => !taken.has(p.name));
@@ -206,12 +246,13 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
             })()}
           </div>
           {g.rows.map((r, ri) => (
-            <div className="edit-row" key={ri}>
+            <div className={"edit-row" + (r.deleted ? " edit-deleted" : "")} key={ri}>
               <span className="edit-k" title={r.name}>{r.name}</span>
               {r.isEnum ? (
                 <select
                   className="edit-v"
                   value={r.value}
+                  disabled={r.deleted || g.deleted}
                   onChange={(e) => setRow(gi, ri, { value: e.target.value })}
                   title="PredefinedType"
                 >
@@ -224,11 +265,11 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
                 <input
                   className="edit-v"
                   value={r.value}
-                  disabled={r.readonly}
+                  disabled={r.readonly || r.deleted || g.deleted}
                   onChange={(e) => setRow(gi, ri, { value: e.target.value })}
                 />
               )}
-              {g.kind === "pset" && (
+              {g.kind === "pset" && !r.deleted && !g.deleted && (
                 <select
                   className="edit-type"
                   value={r.propType ?? PropertyValueType.Text}
@@ -237,6 +278,16 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
                 >
                   {TYPE_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
+              )}
+              {g.kind === "pset" && !r.readonly && !g.deleted && (
+                <button
+                  className="edit-mini ghost edit-del"
+                  title={r.deleted ? t("edit.undoDelete") : t("edit.deleteProp")}
+                  aria-label={r.deleted ? t("edit.undoDelete") : t("edit.deleteProp")}
+                  onClick={() => deleteRow(gi, ri)}
+                >
+                  {r.deleted ? "↺" : "×"}
+                </button>
               )}
             </div>
           ))}

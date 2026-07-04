@@ -19,7 +19,7 @@ interface V3 {
 const NS = "http://www.w3.org/2000/svg";
 
 /** IFC model point → Stereo 70 (Est, Nord, H). Identity when no georef. */
-function modelToStereo70(g: GeorefInfo | null, p: V3): V3 {
+export function modelToStereo70(g: GeorefInfo | null, p: V3): V3 {
   if (!g) return { x: p.x, y: p.y, z: p.z };
   const t = (g.rotationDeg * Math.PI) / 180;
   const c = Math.cos(t), s = Math.sin(t);
@@ -306,7 +306,7 @@ export class MeasureTool {
 }
 
 /** Distance from screen point (px,py) to segment a–b. */
-function distToSeg(px: number, py: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
+export function distToSeg(px: number, py: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
   const dx = b.x - a.x, dy = b.y - a.y;
   const len2 = dx * dx + dy * dy;
   let t = len2 ? ((px - a.x) * dx + (py - a.y) * dy) / len2 : 0;
@@ -315,7 +315,7 @@ function distToSeg(px: number, py: number, a: { x: number; y: number }, b: { x: 
 }
 
 /** Even-odd point-in-polygon test on screen coords. */
-function pointInPoly(px: number, py: number, poly: { x: number; y: number }[]): boolean {
+export function pointInPoly(px: number, py: number, poly: { x: number; y: number }[]): boolean {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
@@ -325,7 +325,7 @@ function pointInPoly(px: number, py: number, poly: { x: number; y: number }[]): 
 }
 
 /** 3D polygon area via the Newell cross-product sum (handles tilted plots). */
-function polygonArea(pts: V3[]): number {
+export function polygonArea(pts: V3[]): number {
   let nx = 0, ny = 0, nz = 0;
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i];

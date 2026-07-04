@@ -1551,6 +1551,27 @@ table.summary td.k {
 .edit-mini.ghost {
   color: var(--muted);
 }
+/* Delete (×) / undo (↺) buttons on pset rows and group heads. */
+.edit-del {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  line-height: 1.2;
+}
+.edit-del:hover:not(:disabled) {
+  color: var(--danger, #d33);
+  border-color: var(--danger, #d33);
+}
+/* Row / whole set marked for deletion (applied on Save). */
+.edit-row.edit-deleted .edit-k,
+.edit-group.edit-deleted .edit-group-name,
+.edit-group.edit-deleted .edit-k {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.edit-row.edit-deleted .edit-v,
+.edit-group.edit-deleted .edit-v {
+  opacity: 0.45;
+}
 .edit-add-btn {
   width: 100%;
   margin: 4px 0 12px;

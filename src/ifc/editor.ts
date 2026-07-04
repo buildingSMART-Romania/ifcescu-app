@@ -238,6 +238,14 @@ export class IfcEditor {
   setQuantity(id: number, qset: string, name: string, value: number, qType: QuantityType = QuantityType.Length): void {
     this.view.setQuantity(id, qset, name, value, qType);
   }
+  /** Delete one property from a pset (overlay tombstone; applies at export). */
+  removeProperty(id: number, pset: string, prop: string): void {
+    this.view.deleteProperty(id, pset, prop);
+  }
+  /** Delete an entire property set from the element. */
+  removePropertySet(id: number, psetName: string): void {
+    this.view.deletePropertySet(id, psetName);
+  }
 
   // --- query selection (@ifc-lite BulkQueryEngine) for the Filter feature ---
   private bulk?: BulkQueryEngine;

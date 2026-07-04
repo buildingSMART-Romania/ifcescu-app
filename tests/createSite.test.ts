@@ -49,4 +49,39 @@ describe("IfcEditor inline round-trip", () => {
     expect(valueOf(ed2, PROJECT_ID, "Pset_Custom", "Code")).toBe("ABC-123");
     ed2.close();
   });
+
+  it("deletes a property and a whole pset; the deletion survives export+reopen", async () => {
+    const PROJECT_ID = 1;
+    // Seed a model that actually contains two psets (via a first export pass).
+    const seed = await IfcEditor.open(new TextEncoder().encode(TINY_IFC));
+    seed.createPropertySet(PROJECT_ID, "Pset_Keep", [
+      { name: "Stays", value: "yes", type: PropertyValueType.Text },
+      { name: "Goes", value: "no", type: PropertyValueType.Text },
+    ]);
+    seed.createPropertySet(PROJECT_ID, "Pset_Drop", [
+      { name: "Anything", value: "x", type: PropertyValueType.Text },
+    ]);
+    const seeded = seed.export();
+    seed.close();
+
+    const ed = await IfcEditor.open(seeded);
+    expect(valueOf(ed, PROJECT_ID, "Pset_Keep", "Goes")).toBe("no");
+    expect(valueOf(ed, PROJECT_ID, "Pset_Drop", "Anything")).toBe("x");
+
+    ed.removeProperty(PROJECT_ID, "Pset_Keep", "Goes");
+    ed.removePropertySet(PROJECT_ID, "Pset_Drop");
+    expect(ed.hasChanges()).toBe(true);
+    // The overlay view reflects deletions immediately (before export).
+    expect(valueOf(ed, PROJECT_ID, "Pset_Keep", "Goes")).toBeUndefined();
+    expect(ed.getSelection(PROJECT_ID).groups.find((g) => g.name === "Pset_Drop")).toBeUndefined();
+
+    const out = ed.export();
+    ed.close();
+
+    const ed2 = await IfcEditor.open(out);
+    expect(valueOf(ed2, PROJECT_ID, "Pset_Keep", "Stays")).toBe("yes"); // untouched sibling survives
+    expect(valueOf(ed2, PROJECT_ID, "Pset_Keep", "Goes")).toBeUndefined();
+    expect(ed2.getSelection(PROJECT_ID).groups.find((g) => g.name === "Pset_Drop")).toBeUndefined();
+    ed2.close();
+  });
 });

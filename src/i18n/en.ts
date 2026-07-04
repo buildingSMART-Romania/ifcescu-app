@@ -268,6 +268,9 @@ export const en: Dict = {
   },
   edit: {
     addOfficialProp: "Add official property",
+    deleteProp: "Delete this property (applied on Save)",
+    deletePset: "Delete this property set (applied on Save)",
+    undoDelete: "Undo delete",
     addProperty: "+ property",
     undefinedEnum: "(undefined)",
     valueType: "Value type",

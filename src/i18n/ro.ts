@@ -272,6 +272,9 @@ export const ro = {
   },
   edit: {
     addOfficialProp: "Adaugă proprietate oficială",
+    deleteProp: "Șterge această proprietate (se aplică la Salvează)",
+    deletePset: "Șterge acest set de proprietăți (se aplică la Salvează)",
+    undoDelete: "Anulează ștergerea",
     addProperty: "+ proprietate",
     undefinedEnum: "(nedefinit)",
     valueType: "Tipul valorii",
