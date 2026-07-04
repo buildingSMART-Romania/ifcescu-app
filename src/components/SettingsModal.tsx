@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Modal } from "./Modal";
 import { useI18n } from "../i18n/react";
 import { useSettings } from "../settings/react";
 import { DEFAULTS, type AreaUnit, type LengthUnit, type PivotMode, type Projection } from "../settings/index";
+
+type SettingsTab = "units" | "viewer" | "nav" | "experimental";
 
 /** A labelled on/off row (used for experimental toggles and viewer flags). */
 function Toggle({ checked, onChange, label, desc, badge }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc?: string; badge?: string }) {
@@ -43,6 +46,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const { settings, update } = useSettings();
   const s = settings;
+  const [tab, setTab] = useState<SettingsTab>("units");
+
+  const TABS: { id: SettingsTab; label: string }[] = [
+    { id: "units", label: t("settings.tabUnits") },
+    { id: "viewer", label: t("settings.tabViewer") },
+    { id: "nav", label: t("settings.tabNav") },
+    { id: "experimental", label: t("settings.tabExperimental") },
+  ];
 
   return (
     <Modal
@@ -50,9 +61,23 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       footer={<button className="btn" onClick={onClose}>{t("common.close")}</button>}
     >
-      {/* Experimental features */}
+      <div className="set-tabs" role="tablist">
+        {TABS.map((x) => (
+          <button
+            key={x.id}
+            className={"set-tab" + (tab === x.id ? " active" : "")}
+            role="tab"
+            aria-selected={tab === x.id}
+            onClick={() => setTab(x.id)}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="set-tab-body">
+      {tab === "experimental" && (
       <section className="set-section">
-        <h3 className="set-h">{t("settings.experimentalTitle")}</h3>
         <p className="set-note">{t("settings.experimentalNote")}</p>
         <Toggle
           checked={s.experimental.analytics}
@@ -62,10 +87,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           badge={t("settings.badge")}
         />
       </section>
+      )}
 
-      {/* Units & formatting */}
+      {tab === "units" && (
       <section className="set-section">
-        <h3 className="set-h">{t("settings.unitsTitle")}</h3>
         <div className="row">
           <div className="field">
             <label>{t("settings.unitLength")}</label>
@@ -90,10 +115,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </select>
         </div>
       </section>
+      )}
 
-      {/* 3D viewer */}
+      {tab === "viewer" && (
       <section className="set-section">
-        <h3 className="set-h">{t("settings.viewerTitle")}</h3>
         <div className="set-row">
           <span>{t("settings.background")}</span>
           <span className="set-row-ctl">
@@ -176,10 +201,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </span>
         </div>
       </section>
+      )}
 
-      {/* 3D navigation */}
+      {tab === "nav" && (
       <section className="set-section">
-        <h3 className="set-h">{t("settings.navigation")}</h3>
         <div className="field">
           <label>{t("settings.pivotMode")}</label>
           <select
@@ -212,6 +237,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           label={t("settings.dblClickFrame")}
         />
       </section>
+      )}
+      </div>
     </Modal>
   );
 }

@@ -2726,6 +2726,46 @@ table.summary td.k {
   padding-top: 0;
   border-top: none;
 }
+/* Settings modal tab bar: segmented control in the app's chip style
+   (rounded track on surface-2, active segment = raised pill with accent). */
+.set-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.set-tab {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.set-tab:hover {
+  color: var(--text);
+}
+.set-tab.active {
+  background: var(--surface);
+  border-color: rgba(var(--accent-rgb), 0.35);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+/* Soft height floor so short tabs don't collapse the modal (no big void). */
+.set-tab-body {
+  min-height: 220px;
+}
+.set-tab-body .set-section {
+  padding-top: 0;
+  border-top: none;
+}
 .set-h {
   margin: 0 0 4px;
   font-size: 0.9rem;
