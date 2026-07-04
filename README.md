@@ -21,6 +21,10 @@ Built with **Vite + React + TypeScript** and the buildingSMART colour palette wi
 a light/dark theme toggle. The UI ships in **Romanian (default)** and **English**,
 switchable at runtime from a button in the top-right (the choice is remembered).
 
+Because everything runs client-side, **your IFC files never leave your device** — they
+are parsed and rendered entirely in the browser, never uploaded to a server. Suggestions
+or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-app/issues).
+
 > ⚠️ **The 3D viewer requires WebGPU** (recent Chrome/Edge, or Safari 18+). The app
 > gates on `navigator.gpu` and shows a notice when it's unavailable — **data
 > editing, export, and the Cesium globe still work** without WebGPU.

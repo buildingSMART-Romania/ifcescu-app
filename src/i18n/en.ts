@@ -12,6 +12,9 @@ export const en: Dict = {
     up: "Up",
     down: "Down",
     loading: "Loading…",
+    privacyNote: "Your IFC files stay on your device — everything runs in your browser, nothing is uploaded to a server.",
+    feedbackLead: "Have a suggestion or found a bug?",
+    reportIssue: "Open an issue on GitHub",
     optional: "Optional",
   },
   app: {

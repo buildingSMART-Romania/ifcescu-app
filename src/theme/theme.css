@@ -251,6 +251,23 @@ body {
 .upload-credit a:hover {
   text-decoration: underline;
 }
+/* Privacy reassurance under the dropzone: quiet, but readable. Inline-flex so the
+   card's text-align:center keeps it centered while the note text stays left-aligned. */
+.upload-privacy {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  max-width: 34rem;
+  line-height: 1.4;
+  text-align: left;
+}
+.upload-privacy svg {
+  flex: none;
+  margin-top: 1px;
+}
 
 /* Theme toggle */
 .toggle {
@@ -2461,6 +2478,33 @@ table.summary td.k {
   border-top: 1px solid var(--border);
   margin-top: 8px;
   padding-top: 12px;
+}
+/* Privacy + feedback footer of the guide. */
+.help-about {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.help-about p {
+  margin: 0 0 6px;
+}
+.help-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.help-privacy svg {
+  flex: none;
+  margin-top: 1px;
+}
+.help-about a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.help-about a:hover {
+  text-decoration: underline;
 }
 .help-shortcuts-title {
   font-weight: 600;

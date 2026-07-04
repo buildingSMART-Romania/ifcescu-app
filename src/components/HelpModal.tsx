@@ -1,5 +1,6 @@
 import { Modal } from "./Modal";
 import { useI18n } from "../i18n/react";
+import { UiIcon } from "./icons";
 import type { I18nKey } from "../i18n";
 
 interface Props {
@@ -79,6 +80,14 @@ export function HelpModal({ onClose }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="help-about">
+        <p className="help-privacy"><UiIcon kind="lock" />{t("common.privacyNote")}</p>
+        <p>
+          {t("common.feedbackLead")}{" "}
+          <a href="https://github.com/buildingSMART-Romania/ifcescu-app/issues" target="_blank" rel="noreferrer">{t("common.reportIssue")}</a>.
+        </p>
       </div>
     </Modal>
   );

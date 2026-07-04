@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useI18n } from "../i18n/react";
+import { UiIcon } from "./icons";
 // Inlined so the "building" letters (fill:currentColor) follow the theme color.
 import logoRaw from "../../public/logo_bsro.svg?raw";
 
@@ -84,6 +85,7 @@ export function UploadPanel({ onFile, variant = "drop" }: Props) {
       >
         {t("upload.dropPre")}<strong>.ifc</strong>{t("upload.dropPost")}
       </div>
+      <p className="upload-privacy"><UiIcon kind="lock" />{t("common.privacyNote")}</p>
       <div className="upload-samples">
         <span className="upload-samples-title">{t("upload.sampleTitle")}</span>
         <div className="upload-samples-row">
@@ -103,6 +105,10 @@ export function UploadPanel({ onFile, variant = "drop" }: Props) {
         <span>
           {t("upload.creditThanks")}{" "}
           <a href="https://buymeacoffee.com/louistrue" target="_blank" rel="noreferrer">{t("upload.creditSupport")}</a>.
+        </span>
+        <span>
+          {t("common.feedbackLead")}{" "}
+          <a href="https://github.com/buildingSMART-Romania/ifcescu-app/issues" target="_blank" rel="noreferrer">{t("common.reportIssue")}</a>.
         </span>
       </div>
       {input}

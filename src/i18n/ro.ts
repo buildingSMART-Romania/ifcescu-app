@@ -16,6 +16,9 @@ export const ro = {
     up: "Sus",
     down: "Jos",
     loading: "Se încarcă…",
+    privacyNote: "Fișierele IFC rămân pe dispozitivul tău — totul rulează în browser, nimic nu se încarcă pe un server.",
+    feedbackLead: "Ai o sugestie sau ai găsit un bug?",
+    reportIssue: "Deschide un issue pe GitHub",
     optional: "Opțional",
   },
   app: {

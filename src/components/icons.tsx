@@ -50,8 +50,9 @@ export function ViewIcon({ kind }: { kind: "iso" | "up" | "down" | "left" | "rig
 }
 
 /** General control icons replacing emoji glyphs on buttons/menu items. */
-export function UiIcon({ kind }: { kind: "trash" | "eye" | "eyeOff" | "area" | "fit" | "upload" | "warn" }) {
+export function UiIcon({ kind }: { kind: "trash" | "eye" | "eyeOff" | "area" | "fit" | "upload" | "warn" | "lock" }) {
   switch (kind) {
+    case "lock": return <svg {...A}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
     case "trash": return <svg {...A}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>;
     case "eye": return <svg {...A}><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.6" /></svg>;
     case "eyeOff": return <svg {...A}><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.6" /><path d="M3 3l18 18" /></svg>;
