@@ -24,9 +24,8 @@ import { ModelsPanel } from "./ModelsPanel";
 import { NavCube } from "./NavCube";
 import { ViewBar } from "./ViewBar";
 import { groupColor, type PivotConfig, type PivotModel, type Rgba } from "../viewer/pivot";
-import { runIdsValidation } from "../ifc/ids";
+import { runIdsValidation, hasIdsContent } from "../ifc/ids";
 import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
-import { loadIdsDraft, saveIdsDraft, clearIdsDraft, hasIdsContent } from "../ifc/idsDraft";
 import { IdsEditorModal } from "./IdsEditorModal";
 import { FilterPanel, DEFAULT_FILTER_RULES, type FilterRule } from "./FilterPanel";
 // Lazy so Recharts only loads when the analytics panel is opened.
@@ -258,19 +257,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const dockRef = useRef(dock);
   dockRef.current = dock;
   const [idsEditorOpen, setIdsEditorOpen] = useState(false);
-  // The "active" authored IDS document, persisted globally so it survives closing
-  // the editor and reloading the page. Lazy init reads any saved draft; because
-  // the Viewer remounts per file (key on fileName), this also survives model switches.
-  const [activeIdsDoc, setActiveIdsDoc] = useState<IDSDocument | null>(() => loadIdsDraft());
-  // Debounced persist: write real drafts, and drop the stored draft once the doc
-  // goes back to pristine (e.g. after a confirmed "New") so it doesn't resurrect.
-  useEffect(() => {
-    const id = setTimeout(() => {
-      if (hasIdsContent(activeIdsDoc)) saveIdsDraft(activeIdsDoc!);
-      else clearIdsDraft();
-    }, 400);
-    return () => clearTimeout(id);
-  }, [activeIdsDoc]);
+  // The "active" authored/uploaded IDS document — the single source of truth for
+  // what the editor edits and whether the panel button reads "Edit IDS". Kept in
+  // memory only: it survives closing the editor within a session, but closing or
+  // reloading the app starts fresh (Export .ids is the way to keep one for good).
+  const [activeIdsDoc, setActiveIdsDoc] = useState<IDSDocument | null>(null);
   // Model-info panel is open by default on load; it can be closed (×) or toggled
   // from the toolbar. A selection still takes over the right panel with props.
   const [showInfo, setShowInfo] = useState(true);
@@ -1502,6 +1493,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           }}
           onExportBcf={exportIdsToBcf}
           onOpenEditor={() => setIdsEditorOpen(true)}
+          onDocParsed={setActiveIdsDoc}
           hasActiveDoc={hasIdsContent(activeIdsDoc)}
           onDiscardDraft={() => setActiveIdsDoc(null)}
           onClose={() => setDock("none")}
@@ -1512,7 +1504,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         <IdsEditorModal
           schema={detectSchema(bytes) as any}
           pivotModels={pivotModels}
-          initialDoc={activeIdsDoc ?? idsReport?.document ?? null}
+          initialDoc={activeIdsDoc}
           onValidate={validateAuthoredIds}
           onDocChange={setActiveIdsDoc}
           onClose={() => setIdsEditorOpen(false)}

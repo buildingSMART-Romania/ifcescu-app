@@ -80,6 +80,34 @@ export function emptyIdsDoc(): IDSDocument {
   return { info: { title: "" }, specifications: [emptySpec()] };
 }
 
+/**
+ * True when the document is more than a pristine emptyIdsDoc() — i.e. an actual
+ * authored document worth treating as the "active IDS" and worth confirming
+ * before New/Load discards it. A single spec that was merely renamed does not
+ * count as content on purpose.
+ */
+export function hasIdsContent(doc: IDSDocument | null | undefined): boolean {
+  if (!doc) return false;
+  const i = doc.info;
+  if (
+    i.title?.trim() ||
+    i.author ||
+    i.version ||
+    i.description ||
+    i.date ||
+    i.purpose ||
+    i.milestone ||
+    i.copyright
+  ) {
+    return true;
+  }
+  const specs = doc.specifications ?? [];
+  if (specs.length > 1) return true;
+  return specs.some(
+    (s) => (s.applicability?.facets?.length ?? 0) > 0 || (s.requirements?.length ?? 0) > 0,
+  );
+}
+
 /** A fresh specification: applies to everything, no requirements yet. */
 export function emptySpec(): IDSSpecification {
   return {

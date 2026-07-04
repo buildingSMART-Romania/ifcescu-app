@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { parseIdsXml, runIdsValidation } from "../ifc/ids";
-import type { IDSValidationReport, IDSSpecificationResult, IDSEntityResult } from "../ifc/ids";
+import type { IDSDocument, IDSValidationReport, IDSSpecificationResult, IDSEntityResult } from "../ifc/ids";
 import { useI18n } from "../i18n/react";
 import { ToolIcon, UiIcon } from "./icons";
 
@@ -15,7 +15,10 @@ interface Props {
   onExportBcf?: (report: IDSValidationReport) => void;
   /** Open the IDS creator/editor modal. */
   onOpenEditor?: () => void;
-  /** True when a persisted draft exists, so the button reads "Edit" not "Create". */
+  /** Promote a just-uploaded IDS to the active document (so the button becomes
+   *  "Edit IDS" and the editor opens on it). */
+  onDocParsed?: (doc: IDSDocument) => void;
+  /** True when an authored/uploaded doc is active, so the button reads "Edit" not "Create". */
   hasActiveDoc?: boolean;
   /** Clear the active/authored IDS draft (only relevant when hasActiveDoc). */
   onDiscardDraft?: () => void;
@@ -112,7 +115,7 @@ function SpecCard({
  * Non-conforming entities are highlighted red in the 3D view (handled by the
  * viewer from the same report); clicking a row selects + zooms to that element.
  */
-export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, onExportBcf, onOpenEditor, hasActiveDoc, onDiscardDraft, onClose }: Props) {
+export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, onExportBcf, onOpenEditor, onDocParsed, hasActiveDoc, onDiscardDraft, onClose }: Props) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [idsName, setIdsName] = useState<string | null>(null);
@@ -142,6 +145,7 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
     try {
       const xml = await file.text();
       const doc = parseIdsXml(xml);
+      onDocParsed?.(doc); // uploaded IDS becomes the active doc → button reads "Edit IDS"
       const r = await runIdsValidation(bytes, doc, fileName, (p) => setProgress(p.percentage));
       onReport(r);
     } catch (e: any) {

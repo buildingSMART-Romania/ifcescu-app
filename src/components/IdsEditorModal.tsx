@@ -4,13 +4,12 @@ import { useI18n } from "../i18n/react";
 import type { IfcSchemaVersion } from "@ifc-lite/data";
 import type { PivotModel } from "../viewer/pivot";
 import {
-  parseIdsXml, serializeIds, auditIds, isXsDate,
+  parseIdsXml, serializeIds, auditIds, isXsDate, hasIdsContent,
   emptyIdsDoc, emptySpec, emptyRequirement, defaultFacet,
   type IDSDocument, type IDSSpecification, type IDSFacet, type IDSConstraint,
   type IFCVersion, type RequirementOptionality, type PartOfRelation, type IDSAuditIssue,
   type IDSValidationReport,
 } from "../ifc/ids";
-import { hasIdsContent } from "../ifc/idsDraft";
 import { ifcClasses, propertySets, dataTypes, modelCatalog } from "../ifc/idsCatalog";
 
 // @ifc-lite/ids normalises every IFC4X3 variant to the canonical token "IFC4X3"
@@ -169,7 +168,7 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
               ? t("idsEditor.auditSummary", { e: errs.length, w: warns.length })
               : t("idsEditor.auditOk")}
           </span>
-          <span className="idse-audit muted">· {t("idsEditor.autosaveNote")}</span>
+          <span className="idse-audit muted">· {t("idsEditor.sessionNote")}</span>
           <span style={{ flex: 1 }} />
           {/* Close/Escape don't confirm: the doc is already autosaved by onDocChange. */}
           <button className="btn secondary" onClick={onClose}>{t("common.close")}</button>
