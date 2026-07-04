@@ -154,7 +154,7 @@ const EMAIL_RE = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
 // Anchored shape check plus Date.parse (ISO parsing rejects out-of-range
 // month/day, e.g. "2026-13-01" or "2026-02-30") so only a real xs:date passes.
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const isXsDate = (s: string): boolean => DATE_RE.test(s) && !isNaN(Date.parse(s));
+export const isXsDate = (s: string): boolean => DATE_RE.test(s) && !isNaN(Date.parse(s));
 
 function infoLines(doc: IDSDocument): string[] {
   const i = doc.info;

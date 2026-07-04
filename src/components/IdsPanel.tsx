@@ -15,6 +15,10 @@ interface Props {
   onExportBcf?: (report: IDSValidationReport) => void;
   /** Open the IDS creator/editor modal. */
   onOpenEditor?: () => void;
+  /** True when a persisted draft exists, so the button reads "Edit" not "Create". */
+  hasActiveDoc?: boolean;
+  /** Clear the active/authored IDS draft (only relevant when hasActiveDoc). */
+  onDiscardDraft?: () => void;
   /** When provided, renders a close button (docked-panel mode). */
   onClose?: () => void;
 }
@@ -108,7 +112,7 @@ function SpecCard({
  * Non-conforming entities are highlighted red in the 3D view (handled by the
  * viewer from the same report); clicking a row selects + zooms to that element.
  */
-export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, onExportBcf, onOpenEditor, onClose }: Props) {
+export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, onExportBcf, onOpenEditor, hasActiveDoc, onDiscardDraft, onClose }: Props) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [idsName, setIdsName] = useState<string | null>(null);
@@ -116,6 +120,10 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+  const clearReport = () => { onReport(null); setIdsName(null); setError(null); };
+  const discardDraft = () => { onDiscardDraft?.(); clearReport(); setConfirmingDiscard(false); };
 
   const toggle = (id: string) =>
     setOpen((s) => {
@@ -153,17 +161,21 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
         <div className="ids-head-actions">
           {onOpenEditor && (
             <button className="ids-icon ids-create" title={t("idsEditor.title")} onClick={onOpenEditor}>
-              <span className="ids-create-plus">+</span>{t("ids.create")}
+              {hasActiveDoc ? t("ids.edit") : <><span className="ids-create-plus">+</span>{t("ids.create")}</>}
             </button>
           )}
           <button className="ids-icon" title={t("ids.upload")} onClick={() => inputRef.current?.click()} disabled={validating}>
             <UiIcon kind="upload" />
           </button>
-          {report && (
-            <button className="ids-icon" title={t("ids.clearReport")} onClick={() => { onReport(null); setIdsName(null); setError(null); }}>
+          {hasActiveDoc ? (
+            <button className="ids-icon" title={t("ids.discardDraft")} onClick={() => setConfirmingDiscard(true)}>
               <UiIcon kind="trash" />
             </button>
-          )}
+          ) : report ? (
+            <button className="ids-icon" title={t("ids.clearReport")} onClick={clearReport}>
+              <UiIcon kind="trash" />
+            </button>
+          ) : null}
           {onClose && (
             <button className="ids-icon" title={t("common.close")} onClick={onClose}>
               ×
@@ -184,6 +196,15 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
       />
 
       <div className="ids-panel-body">
+        {confirmingDiscard && (
+          <div className="alert error idse-confirm" role="alert">
+            <span>{t("ids.confirmDiscard")}</span>
+            <span style={{ flex: 1 }} />
+            <button className="btn set-mini" onClick={discardDraft}>{t("ids.discard")}</button>
+            <button className="btn secondary set-mini" onClick={() => setConfirmingDiscard(false)}>{t("common.cancel")}</button>
+          </div>
+        )}
+
         {!report && !validating && (
           <div className="ids-empty-state">
             <p className="ids-intro">{t("ids.intro")}</p>

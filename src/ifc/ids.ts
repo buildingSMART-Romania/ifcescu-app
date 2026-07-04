@@ -19,7 +19,7 @@ import type {
 import { createDataAccessor, narrowSchemaVersion } from "@ifc-lite/ids/bridge";
 import { parseStore, detectSchema } from "./store";
 
-export { serializeIds } from "./idsWriter";
+export { serializeIds, isXsDate } from "./idsWriter";
 
 export type {
   IDSDocument,

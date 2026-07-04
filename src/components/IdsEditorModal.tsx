@@ -4,12 +4,13 @@ import { useI18n } from "../i18n/react";
 import type { IfcSchemaVersion } from "@ifc-lite/data";
 import type { PivotModel } from "../viewer/pivot";
 import {
-  parseIdsXml, serializeIds, auditIds,
+  parseIdsXml, serializeIds, auditIds, isXsDate,
   emptyIdsDoc, emptySpec, emptyRequirement, defaultFacet,
   type IDSDocument, type IDSSpecification, type IDSFacet, type IDSConstraint,
   type IFCVersion, type RequirementOptionality, type PartOfRelation, type IDSAuditIssue,
   type IDSValidationReport,
 } from "../ifc/ids";
+import { hasIdsContent } from "../ifc/idsDraft";
 import { ifcClasses, propertySets, dataTypes, modelCatalog } from "../ifc/idsCatalog";
 
 // @ifc-lite/ids normalises every IFC4X3 variant to the canonical token "IFC4X3"
@@ -34,12 +35,16 @@ interface Props {
   /** Validate the authored doc against the loaded model; returns the report (the
    *  editor stays open so the user can keep editing / exporting). */
   onValidate: (doc: IDSDocument) => Promise<IDSValidationReport | null>;
+  /** Fires whenever the working document changes (and once on mount) so the
+   *  parent can persist it as the active draft — this is what makes Close/Escape
+   *  and page reload non-destructive. */
+  onDocChange?: (doc: IDSDocument) => void;
   onClose: () => void;
 }
 
 interface Suggest { classes: string[]; psets: string[]; props: string[]; dataTypes: string[] }
 
-export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, onClose }: Props) {
+export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, onDocChange, onClose }: Props) {
   const { t } = useI18n();
   const [doc, setDoc] = useState<IDSDocument>(() =>
     initialDoc && initialDoc.specifications?.length ? structuredClone(initialDoc) : emptyIdsDoc(),
@@ -48,9 +53,19 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
   const [audit, setAudit] = useState<IDSAuditIssue[]>([]);
   const [suggest, setSuggest] = useState<Suggest>({ classes: [], psets: [], props: [], dataTypes: [] });
   const [validating, setValidating] = useState(false);
-  const [valSummary, setValSummary] = useState<string | null>(null);
+  const [valError, setValError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // A New/Load action waiting for the user to confirm discarding the current doc.
+  const [pending, setPending] = useState<null | { kind: "new" } | { kind: "load"; file: File }>(null);
+  const [moreInfo, setMoreInfo] = useState(() => {
+    const i = initialDoc?.info;
+    return !!(i && (i.version || i.description || i.date || i.purpose || i.milestone || i.copyright));
+  });
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Report every doc change (and the initial one) up so the parent can autosave
+  // it as the active draft. This is why closing/reloading no longer loses work.
+  useEffect(() => { onDocChange?.(doc); }, [doc]);
 
   // Immutable update via clone-mutate-set (the doc is small).
   const update = (fn: (d: IDSDocument) => void) => setDoc((prev) => { const d = structuredClone(prev); fn(d); return d; });
@@ -92,22 +107,24 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
     doc.specifications.every((s) => s.applicability.facets.length > 0);
   const canUse = structuralOk && errs.length === 0;
 
-  // Stale validation summary shouldn't linger after edits.
-  useEffect(() => setValSummary(null), [doc]);
+  // A stale validation error shouldn't linger after edits.
+  useEffect(() => setValError(null), [doc]);
 
+  // Validate against the model. On success the report is already in the IDS
+  // panel (pushed by onValidate), so we close the editor to reveal it. On
+  // failure we keep the editor open and show the error inline.
   const doValidate = async () => {
     if (!canUse) return;
     setValidating(true);
+    setValError(null);
+    let r: IDSValidationReport | null = null;
     try {
-      const r = await onValidate(doc);
-      if (r) setValSummary(t("idsEditor.valResult", {
-        checked: r.summary.totalEntitiesChecked,
-        ok: r.summary.totalEntitiesPassed,
-        bad: r.summary.totalEntitiesFailed,
-      }));
-    } finally {
-      setValidating(false);
+      r = await onValidate(doc);
+    } catch (e: any) {
+      setValError(t("ids.validateError", { detail: e?.message ? `(${e.message})` : "" }));
     }
+    setValidating(false);
+    if (r) onClose();
   };
 
   const doLoad = async (file: File) => {
@@ -119,6 +136,16 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
     } catch (e: any) {
       setLoadError(t("idsEditor.loadError", { detail: e?.message ?? String(e) }));
     }
+  };
+  const resetDoc = () => { setDoc(emptyIdsDoc()); setSel(0); };
+  // New/Load discard the current doc, so confirm first when there's content.
+  const requestNew = () => { hasIdsContent(doc) ? setPending({ kind: "new" }) : resetDoc(); };
+  const requestLoad = (file: File) => { hasIdsContent(doc) ? setPending({ kind: "load", file }) : doLoad(file); };
+  const confirmPending = () => {
+    if (!pending) return;
+    if (pending.kind === "new") resetDoc();
+    else doLoad(pending.file);
+    setPending(null);
   };
   const doExport = () => {
     const xml = serializeIds(doc);
@@ -142,8 +169,9 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
               ? t("idsEditor.auditSummary", { e: errs.length, w: warns.length })
               : t("idsEditor.auditOk")}
           </span>
-          {valSummary && <span className="idse-audit ok">· {valSummary}</span>}
+          <span className="idse-audit muted">· {t("idsEditor.autosaveNote")}</span>
           <span style={{ flex: 1 }} />
+          {/* Close/Escape don't confirm: the doc is already autosaved by onDocChange. */}
           <button className="btn secondary" onClick={onClose}>{t("common.close")}</button>
           <button className="btn secondary" disabled={!canUse || validating} title={!canUse ? t("idsEditor.needContent") : undefined} onClick={doValidate}>
             {validating ? t("idsEditor.validating") : t("idsEditor.validateNow")}
@@ -153,13 +181,27 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
       }
     >
       <div className="idse-toolbar">
-        <button className="btn secondary set-mini" onClick={() => { setDoc(emptyIdsDoc()); setSel(0); }}>{t("idsEditor.new")}</button>
+        <button className="btn secondary set-mini" onClick={requestNew}>{t("idsEditor.new")}</button>
         <button className="btn secondary set-mini" onClick={() => fileRef.current?.click()}>{t("idsEditor.load")}</button>
         <input ref={fileRef} type="file" accept=".ids,.xml" style={{ display: "none" }}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) doLoad(f); e.target.value = ""; }} />
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) requestLoad(f); e.target.value = ""; }} />
       </div>
 
+      {pending && (
+        <div className="alert error idse-confirm" role="alert">
+          <span>
+            {pending.kind === "new"
+              ? t("idsEditor.confirmNew")
+              : t("idsEditor.confirmLoad", { name: pending.file.name })}
+          </span>
+          <span style={{ flex: 1 }} />
+          <button className="btn set-mini" onClick={confirmPending}>{t("idsEditor.replace")}</button>
+          <button className="btn secondary set-mini" onClick={() => setPending(null)}>{t("common.cancel")}</button>
+        </div>
+      )}
+
       {loadError && <div className="alert error" role="alert">{loadError}</div>}
+      {valError && <div className="alert error" role="alert">{valError}</div>}
 
       {(errs.length > 0 || warns.length > 0) && (
         <ul className="idse-issues">
@@ -184,6 +226,41 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
               <div className="idse-issue error">{t("idsEditor.authorInvalid")}</div>
             )}
           </div>
+
+          <button className="idse-more-toggle" onClick={() => setMoreInfo((v) => !v)}>
+            {moreInfo ? "▾" : "▸"} {t("idsEditor.moreInfo")}
+          </button>
+          {moreInfo && (
+            <div className="idse-more">
+              <div className="field">
+                <label>{t("idsEditor.version")}</label>
+                <input value={doc.info.version ?? ""} onChange={(e) => update((d) => { d.info.version = e.target.value || undefined; })} />
+              </div>
+              <div className="field">
+                <label>{t("idsEditor.docDescription")}</label>
+                <input value={doc.info.description ?? ""} onChange={(e) => update((d) => { d.info.description = e.target.value || undefined; })} />
+              </div>
+              <div className="field">
+                <label>{t("idsEditor.date")}</label>
+                <input value={doc.info.date ?? ""} placeholder={t("idsEditor.datePh")} onChange={(e) => update((d) => { d.info.date = e.target.value || undefined; })} />
+                {!!doc.info.date && !isXsDate(doc.info.date) && (
+                  <div className="idse-issue error">{t("idsEditor.dateInvalid")}</div>
+                )}
+              </div>
+              <div className="field">
+                <label>{t("idsEditor.purpose")}</label>
+                <input value={doc.info.purpose ?? ""} onChange={(e) => update((d) => { d.info.purpose = e.target.value || undefined; })} />
+              </div>
+              <div className="field">
+                <label>{t("idsEditor.milestone")}</label>
+                <input value={doc.info.milestone ?? ""} onChange={(e) => update((d) => { d.info.milestone = e.target.value || undefined; })} />
+              </div>
+              <div className="field">
+                <label>{t("idsEditor.copyright")}</label>
+                <input value={doc.info.copyright ?? ""} onChange={(e) => update((d) => { d.info.copyright = e.target.value || undefined; })} />
+              </div>
+            </div>
+          )}
 
           <div className="idse-list-head">
             <span>{t("idsEditor.specs")}</span>

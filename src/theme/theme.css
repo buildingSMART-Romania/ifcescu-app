@@ -2804,6 +2804,25 @@ table.summary td.k {
 .idse-audit.err { color: #e0524f; }
 .idse-audit.warn { color: #d98330; }
 .idse-audit.ok { color: #18a06a; }
+.idse-audit.muted { color: var(--muted); }
+
+/* Inline confirm strip (New/Load discard) — lays the alert out as a row. */
+.idse-confirm { display: flex; align-items: center; gap: 8px; }
+
+/* Collapsible "More info" metadata block on the left column. */
+.idse-more-toggle {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-bottom: 4px;
+  text-align: left;
+}
+.idse-more-toggle:hover { color: var(--text); }
+.idse-more { margin-bottom: 8px; }
 
 /* Filter & select (docked bottom panel, like Table/Clash) — height via state */
 .filter-topbar { gap: 12px; }

@@ -26,6 +26,7 @@ import { ViewBar } from "./ViewBar";
 import { groupColor, type PivotConfig, type PivotModel, type Rgba } from "../viewer/pivot";
 import { runIdsValidation } from "../ifc/ids";
 import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
+import { loadIdsDraft, saveIdsDraft, clearIdsDraft, hasIdsContent } from "../ifc/idsDraft";
 import { IdsEditorModal } from "./IdsEditorModal";
 import { FilterPanel, DEFAULT_FILTER_RULES, type FilterRule } from "./FilterPanel";
 // Lazy so Recharts only loads when the analytics panel is opened.
@@ -257,6 +258,19 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const dockRef = useRef(dock);
   dockRef.current = dock;
   const [idsEditorOpen, setIdsEditorOpen] = useState(false);
+  // The "active" authored IDS document, persisted globally so it survives closing
+  // the editor and reloading the page. Lazy init reads any saved draft; because
+  // the Viewer remounts per file (key on fileName), this also survives model switches.
+  const [activeIdsDoc, setActiveIdsDoc] = useState<IDSDocument | null>(() => loadIdsDraft());
+  // Debounced persist: write real drafts, and drop the stored draft once the doc
+  // goes back to pristine (e.g. after a confirmed "New") so it doesn't resurrect.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (hasIdsContent(activeIdsDoc)) saveIdsDraft(activeIdsDoc!);
+      else clearIdsDraft();
+    }, 400);
+    return () => clearTimeout(id);
+  }, [activeIdsDoc]);
   // Model-info panel is open by default on load; it can be closed (×) or toggled
   // from the toolbar. A selection still takes over the right panel with props.
   const [showInfo, setShowInfo] = useState(true);
@@ -661,18 +675,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   }, [settings.viewer.selection.outline, ready]);
 
   // Validate an authored IDS doc (from the editor) against the loaded model. The
-  // editor stays OPEN (so the user can keep editing / exporting); the report is
-  // pushed to the IDS panel behind the modal and returned for an inline summary.
+  // report is pushed to the IDS panel and returned; the editor closes itself on
+  // success so the user sees the report. Errors propagate to the editor, which
+  // surfaces them inline (instead of being swallowed here).
   const validateAuthoredIds = async (doc: IDSDocument): Promise<IDSValidationReport | null> => {
     setDock("ids");
-    try {
-      const report = await runIdsValidation(bytes, doc, fileName);
-      onIdsReport?.(report);
-      return report;
-    } catch (e) {
-      console.error("IDS validation failed", e);
-      return null;
-    }
+    const report = await runIdsValidation(bytes, doc, fileName);
+    onIdsReport?.(report);
+    return report;
   };
 
   // IDS → BCF: one topic per failing entity, merged into the shared project,
@@ -1492,6 +1502,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           }}
           onExportBcf={exportIdsToBcf}
           onOpenEditor={() => setIdsEditorOpen(true)}
+          hasActiveDoc={hasIdsContent(activeIdsDoc)}
+          onDiscardDraft={() => setActiveIdsDoc(null)}
           onClose={() => setDock("none")}
         />
       )}
@@ -1500,8 +1512,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         <IdsEditorModal
           schema={detectSchema(bytes) as any}
           pivotModels={pivotModels}
-          initialDoc={idsReport?.document ?? null}
+          initialDoc={activeIdsDoc ?? idsReport?.document ?? null}
           onValidate={validateAuthoredIds}
+          onDocChange={setActiveIdsDoc}
           onClose={() => setIdsEditorOpen(false)}
         />
       )}
