@@ -58,8 +58,7 @@ function buildProject(): BCFProject {
 describe("BCF 2.1 round-trip (writeBCF → readBCF)", () => {
   it("preserves project, topic metadata, comments, selection and snapshot", async () => {
     const blob = await writeBCF(buildProject());
-    // readBcfFile is the app's import path: library read + repair pass (the raw
-    // library reader loses comment text and leaves XML entities encoded).
+    // readBcfFile is the app's import path (thin wrapper over the library read).
     const read = await readBcfFile(await blob.arrayBuffer());
 
     expect(read.name).toBe("Exam project");
@@ -119,15 +118,32 @@ describe("BCF 2.1 round-trip (writeBCF → readBCF)", () => {
   });
 });
 
-describe("upstream reader defects (sentinel)", () => {
-  // Documents WHY readBcfFile's repair pass exists. If this test starts
-  // failing after an @ifc-lite/bcf upgrade, the upstream reader was fixed and
-  // the repair in src/ifc/bcf.ts can be removed.
-  it("raw readBCF loses comment text (worked around by readBcfFile)", async () => {
+describe("upstream reader correctness (sentinel)", () => {
+  // @ifc-lite/bcf 1.15.7 fixed the two reader defects the app used to repair
+  // (comment text lost, XML entities left encoded) — readBcfFile is a thin
+  // wrapper now. If this test starts failing after a bcf upgrade, the reader
+  // regressed and the repair pass must NOT be blindly reinstated: re-decoding
+  // corrupts text that legitimately contains "&amp;" — fix upstream instead.
+  it("raw readBCF preserves comment text and decodes XML entities natively", async () => {
     const blob = await writeBCF(buildProject());
     const raw = await readBCF(await blob.arrayBuffer());
     const topic = [...raw.topics.values()][0];
-    expect(topic.comments[0].comment).toBe("");
+    expect(topic.comments[0].comment).toBe('See viewpoint, value is "F30", expected <F60>.');
+    expect(topic.title).toBe('Clash: wall, "fire" rated <F60>');
+    expect(topic.description).toBe("Wall overlaps the slab & must move.");
+  });
+
+  it("does not double-decode text that legitimately contains entity-like sequences", async () => {
+    const project = createBCFProject({ name: "P", version: "2.1" });
+    const topic = createBCFTopic({
+      // The literal five characters &amp; — after one correct XML round-trip
+      // they must come back exactly, not collapsed to "&".
+      title: "Uses literal &amp; in text",
+      author: "a@example.com",
+    });
+    addTopicToProject(project, topic);
+    const read = await readBcfFile(await (await writeBCF(project)).arrayBuffer());
+    expect([...read.topics.values()][0].title).toBe("Uses literal &amp; in text");
   });
 });
 

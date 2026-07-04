@@ -39,6 +39,11 @@ export default defineConfig({
   // (otherwise the bundled deps lose the worker/wasm asset references).
   optimizeDeps: {
     exclude: ["@ifc-lite/parser", "@ifc-lite/geometry", "@ifc-lite/renderer", "@ifc-lite/wasm"],
+    // jszip is CommonJS and gets imported by the EXCLUDED @ifc-lite/parser
+    // (.ifcZIP support since 3.6.0). Excluded deps are served raw in dev, so
+    // their CJS sub-dependencies must be pre-bundled explicitly or the ESM
+    // default-import interop is missing (blank page in dev; prod is fine).
+    include: ["jszip"],
     // @ifc-lite/ids gets pre-bundled (not excluded); its top-level await needs a
     // modern esbuild target here too, or the dev dep-optimizer fails like the build did.
     esbuildOptions: { target: "esnext" },

@@ -303,9 +303,15 @@ export class ViewerEngine {
 
     const proc = new GeometryProcessor();
     await proc.init();
+    // Guards the untyped RTC channels: `rtcOffset` is the typed primary event,
+    // `coordinateInfo.wasmRtcOffset` on "complete" is an UNTYPED fallback. If a
+    // geometry upgrade drops both, georeferenced models would silently load at
+    // the wrong place — warn instead of failing silently.
+    let sawRtcSignal = false;
     for await (const ev of proc.processStreaming(bytes)) {
       if (this.disposed) break;
       if (ev.type === "rtcOffset") {
+        sawRtcSignal = true;
         rtc = ev.rtcOffset;
         if (isFirst) { this.primaryRtc = ev.rtcOffset; this.rtcOffset = ev.rtcOffset; }
         else if (delta === null) { delta = computeDelta(); if (pending.length) { place(pending); pending.length = 0; } }
@@ -318,9 +324,17 @@ export class ViewerEngine {
         }
         if (delta !== null) place(ev.meshes);
         else pending.push(...ev.meshes); // RTC not yet known (rare) → buffer
-      } else if (ev.type === "complete" && (ev as any).coordinateInfo?.wasmRtcOffset) {
-        if (isFirst) this.rtcOffset = (ev as any).coordinateInfo.wasmRtcOffset;
-        else if (delta === null) { rtc = (ev as any).coordinateInfo.wasmRtcOffset; }
+      } else if (ev.type === "complete") {
+        if ((ev as any).coordinateInfo?.wasmRtcOffset) {
+          sawRtcSignal = true;
+          if (isFirst) this.rtcOffset = (ev as any).coordinateInfo.wasmRtcOffset;
+          else if (delta === null) { rtc = (ev as any).coordinateInfo.wasmRtcOffset; }
+        } else if (!sawRtcSignal) {
+          console.warn(
+            `[engine] No RTC signal for "${fileName}" (neither the rtcOffset event nor complete.coordinateInfo.wasmRtcOffset). ` +
+            "Fine for models at the origin; a georeferenced model would load misplaced — check the @ifc-lite/geometry event shape.",
+          );
+        }
       }
     }
     proc.dispose?.();
