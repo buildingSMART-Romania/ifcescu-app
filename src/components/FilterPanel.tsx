@@ -8,19 +8,13 @@ import { modelCatalog } from "../ifc/idsCatalog";
 import { ToolIcon } from "./icons";
 import { useDockResize } from "../hooks/useDockResize";
 
-type NameOp = "contains" | "equals" | "regex";
-export type FilterRule =
-  | { kind: "type"; classes: string[] }
-  | { kind: "spatial"; ids: number[] } // express ids of storey/building/site containers
-  | { kind: "property"; pset: string; prop: string; op: FilterOperator; value: string }
-  | { kind: "name"; op: NameOp; value: string };
+import { DEFAULT_FILTER_RULES, type FilterAction, type FilterRule, type NameOp } from "./filterRules";
+
+// Re-exported for existing importers; the definitions live in ./filterRules.
+export { DEFAULT_FILTER_RULES };
+export type { FilterAction, FilterRule };
+
 type Rule = FilterRule;
-
-/** What to do with the matched elements in 3D. */
-export type FilterAction = "select" | "isolate" | "hide" | "color";
-
-/** The initial rule set for a fresh filter (one empty type rule). */
-export const DEFAULT_FILTER_RULES: FilterRule[] = [{ kind: "type", classes: [] }];
 
 const PROP_OPS: FilterOperator[] = ["=", "!=", ">", "<", ">=", "<=", "CONTAINS", "STARTS_WITH", "ENDS_WITH", "IS_NULL", "IS_NOT_NULL"];
 

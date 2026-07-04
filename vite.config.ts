@@ -9,7 +9,20 @@ export default defineConfig({
   // @ifc-lite/ids bundles a top-level `await import()` (a Node-only branch of its
   // XML parser). Top-level await needs a modern target; the app already requires
   // WebGPU, so targeting esnext is safe and avoids the es2020 transpile error.
-  build: { target: "esnext" },
+  build: {
+    target: "esnext",
+    rollupOptions: {
+      output: {
+        // Stable vendor code gets its own chunks so a redeploy of app code
+        // doesn't invalidate the React/proj4 bytes in the browser cache.
+        manualChunks(id: string) {
+          const p = id.replace(/\\/g, "/");
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(p)) return "react";
+          if (p.includes("node_modules/proj4")) return "proj4";
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     // Copies Cesium's static assets (Workers/Assets/Widgets/ThirdParty) into the

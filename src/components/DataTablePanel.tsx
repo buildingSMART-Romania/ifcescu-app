@@ -188,3 +188,5 @@ export function DataTablePanel({ models, fileName, config, onConfigChange, onSel
     </section>
   );
 }
+
+export default DataTablePanel;

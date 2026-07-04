@@ -435,3 +435,5 @@ export function BcfPanel({
     </div>
   );
 }
+
+export default BcfPanel;

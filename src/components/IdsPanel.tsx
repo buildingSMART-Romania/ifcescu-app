@@ -350,3 +350,5 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
     </div>
   );
 }
+
+export default IdsPanel;

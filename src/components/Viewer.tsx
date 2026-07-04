@@ -18,21 +18,24 @@ import { PropAccordion, FileInfoPanel, type PropGroup, type FileInfo } from "./P
 import { useI18n } from "../i18n/react";
 import { useSettings } from "../settings/react";
 import { t, type I18nKey } from "../i18n";
-import { BcfPanel } from "./BcfPanel";
-import { IdsPanel } from "./IdsPanel";
-import { DataTablePanel } from "./DataTablePanel";
 import { ModelsPanel } from "./ModelsPanel";
 import { NavCube } from "./NavCube";
 import { ViewBar } from "./ViewBar";
 import { groupColor, type PivotConfig, type PivotModel, type Rgba } from "../viewer/pivot";
 import { runIdsValidation, hasIdsContent } from "../ifc/ids";
 import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
-import { IdsEditorModal } from "./IdsEditorModal";
-import { FilterPanel, DEFAULT_FILTER_RULES, type FilterRule } from "./FilterPanel";
+import { DEFAULT_FILTER_RULES, type FilterRule } from "./filterRules";
 // Lazy so Recharts only loads when the analytics panel is opened.
 const AnalyticsPanel = lazy(() => import("./analytics/AnalyticsPanel"));
 // Lazy so the clash detection panel (and its compute) load only when opened.
 const ClashPanel = lazy(() => import("./ClashPanel"));
+// The on-demand panels load lazily too, keeping them out of the initial chunk:
+// each downloads on first open (side docks, bottom docks and the IDS editor).
+const BcfPanel = lazy(() => import("./BcfPanel"));
+const IdsPanel = lazy(() => import("./IdsPanel"));
+const DataTablePanel = lazy(() => import("./DataTablePanel"));
+const FilterPanel = lazy(() => import("./FilterPanel"));
+const IdsEditorModal = lazy(() => import("./IdsEditorModal"));
 import { createBCFFromIDSReport, addTopicToProject, extractViewpointState, globalIdsToExpressIds, type BCFProject, type BCFViewpoint } from "../ifc/bcf";
 
 // Non-conforming IDS elements are painted this red in the 3D view.
@@ -1412,6 +1415,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             </Suspense>
           )}
           {bottomDock === "filter" && (
+            <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
             <FilterPanel
               editor={editor}
               pivotModels={pivotModels}
@@ -1428,6 +1432,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               onReset={() => { showAll(); setGroupColorMap(null); selectIds([]); }}
               onClose={() => setBottomDock("none")}
             />
+            </Suspense>
           )}
           {bottomDock === "clash" && ready && pivotModels.length > 0 && engineRef.current && (
             <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
@@ -1499,6 +1504,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         </div>
 
         {bottomDock === "table" && ready && pivotModels.length > 0 && (
+          <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
           <DataTablePanel
             models={pivotModels}
             fileName={fileName}
@@ -1508,6 +1514,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             onColorByGroup={setGroupColorMap}
             onClose={() => setBottomDock("none")}
           />
+          </Suspense>
         )}
       </div>
 
@@ -1574,6 +1581,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       )}
 
       {dock === "ids" && onIdsReport && (
+        <Suspense fallback={<div className="ids-panel" />}>
         <IdsPanel
           bytes={bytes}
           fileName={fileName}
@@ -1590,9 +1598,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           onDiscardDraft={() => setActiveIdsDoc(null)}
           onClose={() => setDock("none")}
         />
+        </Suspense>
       )}
 
       {idsEditorOpen && (
+        <Suspense fallback={null}>
         <IdsEditorModal
           schema={detectSchema(bytes) as any}
           pivotModels={pivotModels}
@@ -1601,9 +1611,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           onDocChange={setActiveIdsDoc}
           onClose={() => setIdsEditorOpen(false)}
         />
+        </Suspense>
       )}
 
       {dock === "bcf" && (
+        <Suspense fallback={<div className="ids-panel" />}>
         <BcfPanel
           engine={engineRef.current}
           store={storeRef.current}
@@ -1615,6 +1627,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           onBcfProject={(p) => onBcfProject?.(p)}
           onClose={() => setDock("none")}
         />
+        </Suspense>
       )}
 
     </div>
