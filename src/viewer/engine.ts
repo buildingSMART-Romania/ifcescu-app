@@ -30,7 +30,8 @@ type Bounds = { min: [number, number, number]; max: [number, number, number] };
 // The Camera applies its OWN internal scaling (ORBIT_SENSITIVITY 0.01 rad/px,
 // PAN_SPEED_MULTIPLIER 0.001·distance, ZOOM_SENSITIVITY 0.001 clamped to 0.1),
 // so we must feed it RAW pixel/wheel deltas. (Pre-scaling here double-applied the
-// factor and made everything crawl.) These knobs stay at 1 for the native feel.
+// factor and made everything crawl.) These are the stock baselines; the effective
+// per-instance sensitivities are baseline × the user's speed multiplier (Settings).
 const ORBIT_SENS = 0.7;
 const PAN_SENS = 0.7;
 const ZOOM_SENS = 0.7;
@@ -93,6 +94,8 @@ export class ViewerEngine {
   onSectionMove: ((pos: number) => void) | null = null;
   /** Active snap methods for measurement (all on by default). */
   snapOptions: SnapOptions = { vertex: true, midpoint: true, edge: true, face: true };
+  // Effective navigation sensitivities (baseline × user speed multiplier).
+  private navSens = { orbit: ORBIT_SENS, pan: PAN_SENS, zoom: ZOOM_SENS };
   private state: RenderState = {
     hiddenIds: new Set(),
     isolatedIds: null,
@@ -558,8 +561,8 @@ export class ViewerEngine {
       if (btn < 0) return;
       const dx = e.clientX - lx, dy = e.clientY - ly;
       lx = e.clientX; ly = e.clientY;
-      if (btn === 0) cam.orbit(dx * ORBIT_SENS, dy * ORBIT_SENS, false);
-      else if (btn === 2 || btn === 1) cam.pan(dx * PAN_SENS, dy * PAN_SENS, false);
+      if (btn === 0) cam.orbit(dx * this.navSens.orbit, dy * this.navSens.orbit, false);
+      else if (btn === 2 || btn === 1) cam.pan(dx * this.navSens.pan, dy * this.navSens.pan, false);
       this.renderer.requestRender();
     };
     const onUp = (e: PointerEvent) => {
@@ -569,7 +572,7 @@ export class ViewerEngine {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = cv.getBoundingClientRect();
-      cam.zoom(e.deltaY * ZOOM_SENS, false, e.clientX - r.left, e.clientY - r.top, r.width, r.height);
+      cam.zoom(e.deltaY * this.navSens.zoom, false, e.clientX - r.left, e.clientY - r.top, r.width, r.height);
       this.renderer.requestRender();
     };
     const onCtx = (e: Event) => e.preventDefault();
@@ -761,6 +764,32 @@ export class ViewerEngine {
       { x: b.max[0], y: b.max[1], z: b.max[2] },
     );
     this.renderer.requestRender();
+  }
+
+  /** Scale orbit/pan/zoom sensitivity by user multipliers (1 = stock feel). */
+  setNavSpeeds(mult: { orbit: number; pan: number; zoom: number }): void {
+    this.navSens = {
+      orbit: ORBIT_SENS * mult.orbit,
+      pan: PAN_SENS * mult.pan,
+      zoom: ZOOM_SENS * mult.zoom,
+    };
+  }
+
+  /** Recenter the orbit pivot on the selection WITHOUT moving the camera (the
+   *  "orbit around selection" nav mode). Pass null to revert to orbiting around
+   *  the camera target (the default, which C / frame recenters). */
+  setPivotToSelection(ids: Iterable<number> | null): void {
+    const cam = this.renderer.getCamera();
+    const b = ids ? this.selectionBounds(ids) : null;
+    if (!b) {
+      cam.setOrbitCenter(null);
+      return;
+    }
+    cam.setOrbitCenter({
+      x: (b.min[0] + b.max[0]) / 2,
+      y: (b.min[1] + b.max[1]) / 2,
+      z: (b.min[2] + b.max[2]) / 2,
+    });
   }
 
   /** Frame a cube of half-size `half` centered on a world point (Y-up). Used by

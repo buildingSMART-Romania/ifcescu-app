@@ -56,6 +56,17 @@ export const en: Dict = {
     perspective: "Perspective",
     orthographic: "Orthographic",
     snapDefaults: "Default snap",
+    navigation: "Navigation",
+    pivotMode: "Orbit pivot",
+    pivotManual: "Manual (C key)",
+    pivotSelection: "Orbit around selection",
+    pivotAutoFrame: "Auto-frame selection",
+    pivotModeHint: "Where orbiting rotates around: recenter only via C / frame (manual), follow whatever you select without moving the camera, or fly to every new selection.",
+    zoomSpeed: "Zoom speed",
+    orbitSpeed: "Orbit speed",
+    panSpeed: "Pan speed",
+    resetSpeeds: "Reset speeds",
+    dblClickFrame: "Double-click frames the element",
   },
   viewer: {
     webgpuPre: "⚠️ The 3D viewer requires ",
@@ -493,7 +504,7 @@ export const en: Dict = {
       "1. Upload an .ifc file (drag it onto the page or click).\n2. Select an element in the 3D viewer or the tree.\n3. See its attributes and properties in the right-hand panel.\n4. Edit (E), measure, create sections, or validate against IDS.\n5. Download the edited model (.ifc) from the top bar.",
     nav3dTitle: "3D view & navigation",
     nav3dBody:
-      "• Orbit: left mouse button.\n• Pan: right or middle mouse button.\n• Zoom: mouse wheel.\n• Navigation cube (top-right): click a face or drag to rotate.\n• Click an element to select it; Shift+click adds/removes elements (multi-select).\n• Bottom bar: home, fit all, zoom, fullscreen.\n• Keys 1–6: orthographic views; Z fits all.\n• Saved views (Views menu): store the current camera and visibility and return to them anytime (remembered per file).",
+      "• Orbit: left mouse button.\n• Pan: right or middle mouse button.\n• Zoom: mouse wheel.\n• Navigation cube (top-right): click a face or drag to rotate.\n• Click an element to select it; Shift+click adds/removes elements (multi-select).\n• Double-click an element to select and frame it (can be turned off in Settings).\n• Tip: orbiting rotates around the last framed point — select an element and press C (or double-click it) to orbit around it. Make this automatic in Settings → Navigation (pivot mode), where you can also tune zoom / orbit / pan speed.\n• Bottom bar: home, fit all, zoom, fullscreen.\n• Keys 1–6: orthographic views; Z fits all.\n• Saved views (Views menu): store the current camera and visibility and return to them anytime (remembered per file).",
     treeTitle: "Tree & selection",
     treeBody:
       "• The Spatial / Class / Material tabs reorganize the same elements.\n• The search field filters the tree by name or class and auto-expands matches.\n• Click a row to select; the eye toggles visibility.\n• IFC classes are shown verbatim (IfcWall, IfcSlab…), grouped with a count.\n• The panel auto-widens to fit the longest visible names (you can still resize it manually from the handle).\n• Collapse all / Expand all from the tree toolbar.",
@@ -505,7 +516,7 @@ export const en: Dict = {
       "• Editing is available on the primary model ★. Select an element and press E (or the pencil button).\n• Change IFC attributes and existing property/quantity values.\n• Add a standard buildingSMART property set (Pset_) or a custom one.\n• “Download” writes a non-destructive edited .ifc (the rest of the file stays unchanged).",
     toolsTitle: "Tools: measure, section, visibility",
     toolsBody:
-      "• Measure: distance, point, or area, with snapping to vertex/midpoint/edge/face.\n• Section: double-click a face to create a clip plane; move it with the handle, adjust the size, or flip the kept side.\n• Visibility: hide (H), isolate (I), frame (F), show all.",
+      "• Measure: distance, point, or area, with snapping to vertex/midpoint/edge/face.\n• Section: double-click a face to create a clip plane; move it with the handle, adjust the size, or flip the kept side.\n• Visibility: hide (H), isolate (L), show all (A); frame the selection with C.",
     federationTitle: "Model federation",
     federationBody:
       "• The “Models” panel loads multiple IFC files into one scene.\n• The first model (★) sets the origin; the rest are placed by georeferencing.\n• “Color by model” gives each model a distinct color to tell them apart in the scene.\n• The tree, selection, and table work across all models; editing, the Globe, IDS, and BCF apply to the primary model only.",
@@ -529,7 +540,7 @@ export const en: Dict = {
       "• Runs 100% in the browser, on the loaded models.\n• The Clashes button opens a resizable bottom panel (the 3D stays visible above). Pick Set A and Set B (by model), a tolerance and, optionally, a clearance distance.\n• \"Run\" finds hard clashes (overlapping geometry) and clearance clashes (gap below the threshold). Optionally, \"precise geometry check\" confirms clashes with a triangle-triangle test, ignores surface contact (elements that merely touch, e.g. a beam resting on a slab) and reports the real penetration, not the bounding box.\n• Clicking a clash isolates + colors (A red / B orange) and frames the two elements in 3D.\n• Set a status for each (new/active/resolved/approved/ignored) — remembered locally. \"Send to BCF\" creates one topic per clash and opens the BCF panel, where you export the .bcfzip; or export to CSV directly.",
     settingsTitle: "Settings",
     settingsBody:
-      "• The gear button (⚙) in the top bar opens settings.\n• Experimental features: enable work-in-progress modules (e.g. Analytics), off by default.\n• Units & formatting: length unit (m/cm/mm), area (m²/ha) and decimals — affects measurements and readouts.\n• 3D viewer: background color, projection (perspective/orthographic), navigation cube, view bar and the default snap options.\n• Choices are saved automatically.",
+      "• The gear button (⚙) in the top bar opens settings.\n• Experimental features: enable work-in-progress modules (e.g. Analytics), off by default.\n• Units & formatting: length unit (m/cm/mm), area (m²/ha) and decimals — affects measurements and readouts.\n• 3D viewer: background color, projection (perspective/orthographic), navigation cube, view bar and the default snap options.\n• Navigation: orbit-pivot mode (manual / orbit around selection / auto-frame), zoom / orbit / pan speed, and double-click framing.\n• Choices are saved automatically.",
     themeLangTitle: "Theme & language",
     themeLangBody:
       "• The ☾/☀ button toggles the light/dark theme.\n• The EN/RO button switches the interface language. Both choices are remembered.",

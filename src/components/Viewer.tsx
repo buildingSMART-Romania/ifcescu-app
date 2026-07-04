@@ -159,6 +159,10 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // value when toggling with "O" (avoids a stale closure).
   const projectionRef = useRef(settings.viewer.projection);
   projectionRef.current = settings.viewer.projection;
+  // Same stale-closure concern for nav behavior read inside the native
+  // onclick/ondblclick handlers (set once in wireEvents).
+  const navRef = useRef(settings.viewer.nav);
+  navRef.current = settings.viewer.nav;
   const hostRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -432,6 +436,17 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   useEffect(() => {
     engineRef.current?.setProjection(settings.viewer.projection);
   }, [settings.viewer.projection, ready]);
+
+  // Navigation speeds follow the settings (multipliers on the stock feel).
+  useEffect(() => {
+    const nav = settings.viewer.nav;
+    engineRef.current?.setNavSpeeds({ orbit: nav.orbitSpeed, pan: nav.panSpeed, zoom: nav.zoomSpeed });
+  }, [settings.viewer.nav.orbitSpeed, settings.viewer.nav.panSpeed, settings.viewer.nav.zoomSpeed, ready]);
+
+  // Leaving the "orbit around selection" mode must drop any external pivot.
+  useEffect(() => {
+    if (settings.viewer.nav.pivotMode !== "selection") engineRef.current?.setPivotToSelection(null);
+  }, [settings.viewer.nav.pivotMode]);
 
   // Default snap options come from settings (toolbar toggles still override live).
   useEffect(() => {
@@ -721,12 +736,22 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         clearSelection();
       }
     };
-    host.ondblclick = (ev: MouseEvent) => {
+    host.ondblclick = async (ev: MouseEvent) => {
       const measure = measureRef.current;
       if (measure && measure.mode === "area") return measure.onDblClick();
       if (measure && measure.mode !== "none") return;
       // Only when the section tool is armed: double-click a face → create the cut there.
-      if (sectionRef.current) sectionFromFace(ev);
+      if (sectionRef.current) return sectionFromFace(ev);
+      // Otherwise (and if enabled): double-click selects and frames the element —
+      // the discoverable version of "select, then C" for new users.
+      if (!navRef.current.dblClickFrame || ev.target !== canvasRef.current) return;
+      const engine = engineRef.current;
+      if (!engine) return;
+      const hit = await engine.pick(ev.clientX, ev.clientY);
+      if (hit && hit.expressId != null) {
+        selectIds([hit.expressId], hit.expressId);
+        engine.zoomToSelection(new Set([hit.expressId]));
+      }
     };
     host.onmousemove = (ev: MouseEvent) => {
       const measure = measureRef.current;
@@ -752,6 +777,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     selectedRef.current = new Set(next);
     setSelectedIds(new Set(next));
     engineRef.current?.setSelectionOutline(next);
+    // Optional nav aids: recenter the orbit pivot on the selection (no camera
+    // move) or fly to frame it, per the pivot-mode setting. Default: manual (C).
+    if (next.length) {
+      if (navRef.current.pivotMode === "selection") engineRef.current?.setPivotToSelection(next);
+      else if (navRef.current.pivotMode === "autoFrame") engineRef.current?.zoomToSelection(next);
+    } else if (navRef.current.pivotMode === "selection") {
+      engineRef.current?.setPivotToSelection(null);
+    }
     // Selecting something new exits any active edit form.
     setEditing(false);
     setEditDetail(null);
@@ -791,6 +824,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     selectedRef.current = new Set();
     setSelectedIds(new Set());
     engineRef.current?.setSelectionOutline([]);
+    if (navRef.current.pivotMode === "selection") engineRef.current?.setPivotToSelection(null);
     editTargetRef.current = null;
     setEditing(false);
     setEditDetail(null);

@@ -6,6 +6,10 @@
 export type LengthUnit = "m" | "cm" | "mm";
 export type AreaUnit = "m2" | "ha";
 export type Projection = "perspective" | "orthographic";
+/** How the orbit pivot follows the selection: manual = only via C/frame (default),
+ *  selection = pivot recenters on what you select without moving the camera,
+ *  autoFrame = the camera flies to frame every new selection. */
+export type PivotMode = "manual" | "selection" | "autoFrame";
 
 export interface Settings {
   /** Experimental modules, off by default. Gates the Analytics module. */
@@ -20,6 +24,15 @@ export interface Settings {
     snap: { vertex: boolean; midpoint: boolean; edge: boolean; face: boolean };
     /** Selection highlight colors: outline (silhouette) and an optional fill tint. */
     selection: { outline: string; fill: string | null };
+    /** 3D navigation preferences. Speeds are multipliers on the default (1 = stock). */
+    nav: {
+      pivotMode: PivotMode;
+      zoomSpeed: number;
+      orbitSpeed: number;
+      panSpeed: number;
+      /** Double-click on an element selects and frames it. */
+      dblClickFrame: boolean;
+    };
   };
 }
 
@@ -33,6 +46,7 @@ export const DEFAULTS: Settings = {
     projection: "perspective",
     snap: { vertex: true, midpoint: true, edge: true, face: true },
     selection: { outline: "#bcf124", fill: null },
+    nav: { pivotMode: "manual", zoomSpeed: 1, orbitSpeed: 1, panSpeed: 1, dblClickFrame: true },
   },
 };
 
@@ -49,6 +63,7 @@ function merge(base: Settings, patch: any): Settings {
       ...patch.viewer,
       snap: { ...base.viewer.snap, ...(patch.viewer?.snap ?? {}) },
       selection: { ...base.viewer.selection, ...(patch.viewer?.selection ?? {}) },
+      nav: { ...base.viewer.nav, ...(patch.viewer?.nav ?? {}) },
     },
   };
 }

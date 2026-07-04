@@ -60,6 +60,17 @@ export const ro = {
     perspective: "Perspectivă",
     orthographic: "Ortografică",
     snapDefaults: "Snap implicit",
+    navigation: "Navigare",
+    pivotMode: "Pivot de orbitare",
+    pivotManual: "Manual (tasta C)",
+    pivotSelection: "Orbitează în jurul selecției",
+    pivotAutoFrame: "Încadrează automat selecția",
+    pivotModeHint: "În jurul cui se rotește orbitarea: recentrare doar cu C / încadrare (manual), urmărește ce selectezi fără să miște camera, sau zboară la fiecare selecție nouă.",
+    zoomSpeed: "Viteză zoom",
+    orbitSpeed: "Viteză orbitare",
+    panSpeed: "Viteză panoramare",
+    resetSpeeds: "Resetează vitezele",
+    dblClickFrame: "Dublu-click încadrează elementul",
   },
   viewer: {
     webgpuPre: "⚠️ Vizualizatorul 3D necesită ",
@@ -497,7 +508,7 @@ export const ro = {
       "1. Încărcați un fișier .ifc (trageți-l în pagină sau faceți click).\n2. Selectați un element în vizualizatorul 3D sau în arbore.\n3. Vedeți atributele și proprietățile în panoul din dreapta.\n4. Editați (E), măsurați, creați secțiuni sau validați IDS.\n5. Descărcați modelul editat (.ifc) din bara de sus.",
     nav3dTitle: "Vizualizare & navigare 3D",
     nav3dBody:
-      "• Orbitare: butonul stâng al mouse-ului.\n• Deplasare (pan): butonul drept sau mijlociu.\n• Zoom: rotița mouse-ului.\n• Cubul de navigație (dreapta-sus): click pe o față sau trageți pentru a roti.\n• Click pe un element pentru a-l selecta; Shift+click adaugă/scoate elemente (selecție multiplă).\n• Bara de jos: acasă, încadrează tot, zoom, ecran complet.\n• Tastele 1–6: vederi ortografice; Z încadrează tot.\n• Vederi salvate (meniul Vederi): salvează camera și vizibilitatea curentă și revino la ele oricând (memorate pe fișier).",
+      "• Orbitare: butonul stâng al mouse-ului.\n• Deplasare (pan): butonul drept sau mijlociu.\n• Zoom: rotița mouse-ului.\n• Cubul de navigație (dreapta-sus): click pe o față sau trageți pentru a roti.\n• Click pe un element pentru a-l selecta; Shift+click adaugă/scoate elemente (selecție multiplă).\n• Dublu-click pe un element îl selectează și îl încadrează (se poate dezactiva din Setări).\n• Sfat: orbitarea se rotește în jurul ultimului punct încadrat — selectează un element și apasă C (sau dublu-click) ca să orbitezi în jurul lui. Fă asta automat din Setări → Navigare (mod pivot), unde poți regla și viteza de zoom / orbitare / panoramare.\n• Bara de jos: acasă, încadrează tot, zoom, ecran complet.\n• Tastele 1–6: vederi ortografice; Z încadrează tot.\n• Vederi salvate (meniul Vederi): salvează camera și vizibilitatea curentă și revino la ele oricând (memorate pe fișier).",
     treeTitle: "Arbore & selecție",
     treeBody:
       "• Filele Spațial / Clase / Materiale reorganizează aceleași elemente.\n• Câmpul de căutare filtrează arborele după nume sau clasă și extinde automat potrivirile.\n• Click pe un rând pentru a selecta; ochiul comută vizibilitatea.\n• Clasele IFC apar verbatim (IfcWall, IfcSlab…), grupate cu număr.\n• Panoul se lățește automat cât să încapă cele mai lungi denumiri (îl poți redimensiona manual din mâner).\n• Restrânge tot / Extinde tot din bara arborelui.",
@@ -509,7 +520,7 @@ export const ro = {
       "• Editarea e disponibilă pe modelul principal ★. Selectați un element și apăsați E (sau butonul creion).\n• Modificați atribute IFC și valori de proprietăți/cantități existente.\n• Adăugați un set de proprietăți standard buildingSMART (Pset_) sau unul personalizat.\n• „Descarcă” scrie un .ifc editat ne-distructiv (restul fișierului rămâne neschimbat).",
     toolsTitle: "Unelte: măsurare, secțiune, vizibilitate",
     toolsBody:
-      "• Măsurare: distanță, punct sau arie, cu snap la vârf/mijloc/muchie/față.\n• Secțiune: dublu-click pe o față creează un plan de tăiere; mutați-l cu mânerul, ajustați dimensiunea sau inversați partea păstrată.\n• Vizibilitate: ascunde (H), izolează (I), încadrează (F), afișează tot.",
+      "• Măsurare: distanță, punct sau arie, cu snap la vârf/mijloc/muchie/față.\n• Secțiune: dublu-click pe o față creează un plan de tăiere; mutați-l cu mânerul, ajustați dimensiunea sau inversați partea păstrată.\n• Vizibilitate: ascunde (H), izolează (L), afișează tot (A); încadrează selecția cu C.",
     federationTitle: "Federare modele",
     federationBody:
       "• Panoul „Modele” încarcă mai multe fișiere IFC în aceeași scenă.\n• Primul model (★) dă originea; celelalte sunt plasate după georeferențiere.\n• „Colorează după model” dă fiecărui model o culoare distinctă pentru a-l deosebi în scenă.\n• Arborele, selecția și tabelul funcționează pe toate modelele; editarea, Globul, IDS și BCF doar pe modelul principal.",
@@ -533,7 +544,7 @@ export const ro = {
       "• Rulează 100% în browser, pe modelele încărcate.\n• Butonul Coliziuni deschide un panou jos redimensionabil (3D rămâne vizibil deasupra). Alege Set A și Set B (pe modele), o toleranță și, opțional, o distanță de apropiere (clearance).\n• „Rulează” găsește coliziunile dure (geometrie suprapusă) și apropierile (gol sub prag). Opțional, „verificare geometrică precisă” confirmă coliziunile cu test triunghi-triunghi, ignoră contactele de suprafață (elemente care doar se ating, ex. o grindă pe o placă) și raportează penetrarea reală — nu cutia de încadrare.\n• Click pe o coliziune izolează + colorează (A roșu / B portocaliu) și încadrează cele două elemente în 3D.\n• Setează o stare pentru fiecare (nou/activ/rezolvat/aprobat/ignorat) — se memorează local. „Trimite în BCF” creează câte un topic per coliziune și deschide panoul BCF, de unde exporți .bcfzip; sau exportă direct în CSV.",
     settingsTitle: "Setări",
     settingsBody:
-      "• Butonul roată (⚙) din bara de sus deschide setările.\n• Funcționalități experimentale: activează module în lucru (ex. Analiză), oprite implicit.\n• Unități & format: unitatea de lungime (m/cm/mm), suprafață (m²/ha) și numărul de zecimale — afectează măsurătorile și citirile.\n• Vizualizator 3D: culoare fundal, proiecție (perspectivă/ortografică), cub de navigație, bară de vederi și snap-ul implicit.\n• Alegerile se salvează automat.",
+      "• Butonul roată (⚙) din bara de sus deschide setările.\n• Funcționalități experimentale: activează module în lucru (ex. Analiză), oprite implicit.\n• Unități & format: unitatea de lungime (m/cm/mm), suprafață (m²/ha) și numărul de zecimale — afectează măsurătorile și citirile.\n• Vizualizator 3D: culoare fundal, proiecție (perspectivă/ortografică), cub de navigație, bară de vederi și snap-ul implicit.\n• Navigare: mod pivot de orbitare (manual / în jurul selecției / încadrare automată), viteza de zoom / orbitare / panoramare și încadrarea la dublu-click.\n• Alegerile se salvează automat.",
     themeLangTitle: "Temă & limbă",
     themeLangBody:
       "• Butonul ☾/☀ comută tema luminoasă/întunecată.\n• Butonul EN/RO comută limba interfeței. Ambele alegeri sunt memorate.",

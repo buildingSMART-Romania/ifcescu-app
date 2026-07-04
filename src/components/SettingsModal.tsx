@@ -1,7 +1,7 @@
 import { Modal } from "./Modal";
 import { useI18n } from "../i18n/react";
 import { useSettings } from "../settings/react";
-import { DEFAULTS, type AreaUnit, type LengthUnit, type Projection } from "../settings/index";
+import { DEFAULTS, type AreaUnit, type LengthUnit, type PivotMode, type Projection } from "../settings/index";
 
 /** A labelled on/off row (used for experimental toggles and viewer flags). */
 function Toggle({ checked, onChange, label, desc, badge }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc?: string; badge?: string }) {
@@ -16,6 +16,26 @@ function Toggle({ checked, onChange, label, desc, badge }: { checked: boolean; o
         {desc && <span className="set-toggle-desc">{desc}</span>}
       </span>
     </label>
+  );
+}
+
+/** A labelled speed slider row (multiplier 0.25–3, shown as a percentage). */
+function Speed({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="set-row">
+      <span>{label}</span>
+      <span className="set-row-ctl set-speed">
+        <input
+          type="range"
+          min={0.25}
+          max={3}
+          step={0.05}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <span className="set-speed-val">{Math.round(value * 100)}%</span>
+      </span>
+    </div>
   );
 }
 
@@ -155,6 +175,42 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             ))}
           </span>
         </div>
+      </section>
+
+      {/* 3D navigation */}
+      <section className="set-section">
+        <h3 className="set-h">{t("settings.navigation")}</h3>
+        <div className="field">
+          <label>{t("settings.pivotMode")}</label>
+          <select
+            value={s.viewer.nav.pivotMode}
+            onChange={(e) => update({ viewer: { nav: { pivotMode: e.target.value as PivotMode } } })}
+          >
+            <option value="manual">{t("settings.pivotManual")}</option>
+            <option value="selection">{t("settings.pivotSelection")}</option>
+            <option value="autoFrame">{t("settings.pivotAutoFrame")}</option>
+          </select>
+        </div>
+        <p className="set-note">{t("settings.pivotModeHint")}</p>
+        <Speed label={t("settings.zoomSpeed")} value={s.viewer.nav.zoomSpeed} onChange={(v) => update({ viewer: { nav: { zoomSpeed: v } } })} />
+        <Speed label={t("settings.orbitSpeed")} value={s.viewer.nav.orbitSpeed} onChange={(v) => update({ viewer: { nav: { orbitSpeed: v } } })} />
+        <Speed label={t("settings.panSpeed")} value={s.viewer.nav.panSpeed} onChange={(v) => update({ viewer: { nav: { panSpeed: v } } })} />
+        <div className="set-row">
+          <span />
+          <span className="set-row-ctl">
+            <button
+              className="btn secondary set-mini"
+              onClick={() => update({ viewer: { nav: { zoomSpeed: 1, orbitSpeed: 1, panSpeed: 1 } } })}
+            >
+              {t("settings.resetSpeeds")}
+            </button>
+          </span>
+        </div>
+        <Toggle
+          checked={s.viewer.nav.dblClickFrame}
+          onChange={(v) => update({ viewer: { nav: { dblClickFrame: v } } })}
+          label={t("settings.dblClickFrame")}
+        />
       </section>
     </Modal>
   );

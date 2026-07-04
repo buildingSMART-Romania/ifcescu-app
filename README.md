@@ -105,10 +105,13 @@ switchable at runtime from a button in the top-right (the choice is remembered).
   undulation readout.
 - **Settings** — a gear-button dialog (saved to `localStorage`): **experimental
   features** (gates the analytics module — off by default), **units & formatting**
-  (length m/cm/mm, area m²/ha, decimals), and **3D viewer** (background, projection
-  perspective/orthographic, navigation cube, view bar, default snapping).
+  (length m/cm/mm, area m²/ha, decimals), **3D viewer** (background, projection
+  perspective/orthographic, navigation cube, view bar, default snapping), and
+  **navigation** (orbit-pivot mode — manual / orbit-around-selection / auto-frame,
+  zoom/orbit/pan speeds, double-click framing).
 - **Navigation** — a ViewCube overlay (click a face / drag to orbit) plus the
-  keyboard shortcuts below.
+  keyboard shortcuts below. Double-click an element to select and frame it
+  (configurable in Settings).
 - **Language** — the whole UI switches between **Romanian (default)** and
   **English** at runtime via the top-right RO/EN button; the preference is saved to
   `localStorage`. IFC technical terms (class names, `Pset_*`/`Qto_*`, `GlobalId`,
