@@ -21,6 +21,7 @@
     "@ifc-lite/renderer": "^1.28.1",
     "@ifc-lite/wasm": "^2.9.0",
     "cesium": "^1.142.0",
+    "jszip": "^3.10.1",
     "proj4": "^2.20.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

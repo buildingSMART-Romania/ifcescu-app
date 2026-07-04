@@ -10,6 +10,7 @@ import { EditPanel } from "./EditPanel";
 import { ViewerEngine } from "../viewer/engine";
 import { buildTree, buildClassTree, buildMaterialTree, getSelectionProps, gatherFileInfo, offsetTree, modelRootNode } from "../viewer/model";
 import { MeasureTool, type MeasureMode } from "../viewer/measure";
+import { captureSnapshots, type SnapshotTask } from "../viewer/snapshot";
 import { computePlacement, type PlacementMode } from "../geo/placement";
 import { IfcTree, defaultNodeOpen, nodeLabel, type TreeNode } from "./IfcTree";
 import { ToolIcon, VisIcon, ViewIcon, UiIcon } from "./icons";
@@ -250,6 +251,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [loadError, setLoadError] = useState<string | null>(null);
   // Last federation addModel failure ("file: detail"); cleared on the next attempt.
   const [addModelError, setAddModelError] = useState<string | null>(null);
+  // Non-null while a BCF snapshot batch runs; drives the opaque cover overlay so
+  // the camera churn stays hidden and only a progress bar is shown.
+  const [captureProgress, setCaptureProgress] = useState<{ done: number; total: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -691,16 +695,59 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     return report;
   };
 
-  // IDS → BCF: one topic per failing entity, merged into the shared project,
-  // then flip the dock to BCF so the new topics are visible.
-  const exportIdsToBcf = (report: IDSValidationReport) => {
+  // Snapshot capture wrapper: shows an opaque cover over the 3D so the user never
+  // sees the camera churn — only a progress bar. Used by both the IDS and clash
+  // BCF exports so the capture is invisible and consistent.
+  const runSnapshotCapture = async (tasks: SnapshotTask[]): Promise<Map<string, string>> => {
+    const engine = engineRef.current;
+    if (!engine || !tasks.length) return new Map();
+    setCaptureProgress({ done: 0, total: tasks.length });
+    try {
+      return await captureSnapshots(engine, tasks, {
+        onProgress: (done, total) => setCaptureProgress({ done, total }),
+      });
+    } finally {
+      setCaptureProgress(null);
+    }
+  };
+
+  // IDS → BCF: one topic per failing entity, merged into the shared project, then
+  // flip the dock to BCF. Every topic gets a camera framing the element (free,
+  // from its bounds — RTC un-shifted so it lands on the real element). When
+  // `withSnapshots`, each also gets a thumbnail (captured behind the cover overlay).
+  const exportIdsToBcf = async (report: IDSValidationReport, withSnapshots: boolean) => {
+    const engine = engineRef.current;
+    // Unique failing entities that carry geometry (skip psets/spaces/etc.).
+    const seen = new Set<number>();
+    const failing: { modelId: string; expressId: number; local: [number, number, number]; localMax: [number, number, number] }[] = [];
+    const entityBounds = new Map<string, { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }>();
+    for (const spec of report.specificationResults) {
+      for (const e of spec.entityResults) {
+        if (e.passed || seen.has(e.expressId)) continue;
+        seen.add(e.expressId);
+        const abs = engine?.elementBoundsForBcf(e.expressId); // absolute (camera)
+        const loc = engine?.elementBounds(e.expressId); // render-local (framing)
+        if (abs && loc) {
+          failing.push({ modelId: e.modelId, expressId: e.expressId, local: loc.min, localMax: loc.max });
+          entityBounds.set(`${e.modelId}:${e.expressId}`, abs);
+        }
+      }
+    }
+
+    let entitySnapshots: Map<string, string> | undefined;
+    if (withSnapshots && failing.length) {
+      entitySnapshots = await runSnapshotCapture(
+        failing.map((f) => ({ key: `${f.modelId}:${f.expressId}`, min: f.local, max: f.localMax })),
+      );
+    }
+
     const generated = createBCFFromIDSReport(
       {
         title: report.document.info.title || "IDS",
         description: report.document.info.description,
         specificationResults: report.specificationResults,
       },
-      { projectName: report.document.info.title || fileName, version: "2.1" },
+      { projectName: report.document.info.title || fileName, version: "2.1", entityBounds, entitySnapshots },
     );
     if (bcfProject) {
       for (const t of generated.topics.values()) addTopicToProject(bcfProject, t);
@@ -1124,7 +1171,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const onApplyViewpoint = (vp: BCFViewpoint) => {
     const eng = engineRef.current;
     if (!eng) return;
-    const bounds = eng.getModelBoundsState() ?? undefined;
+    const bounds = eng.getModelBoundsStateForBcf() ?? undefined;
     const state = extractViewpointState(vp, bounds);
     const visIds = guidsToGlobalIds(state.visibleGuids);
     const selIds = guidsToGlobalIds(state.selectedGuids);
@@ -1133,7 +1180,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       const rgba = argbToRgba(c.color);
       for (const g of guidsToGlobalIds(c.guids)) colorMap.set(g, rgba);
     }
-    if (state.camera) eng.applyCameraState(state.camera);
+    if (state.camera) eng.applyBcfCameraState(state.camera);
     if (visIds.length) isolateIds(visIds);
     setGroupColorMap(colorMap.size ? colorMap : null);
     if (selIds.length) selectIds(selIds, selIds.length === 1 ? selIds[0] : undefined);
@@ -1335,6 +1382,16 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
         <div className="viewer-host" ref={hostRef} style={{ position: "relative" }}>
           <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+          {captureProgress && (
+            <div className="viewer-capture-cover">
+              <div className="capture-box">
+                <div className="ids-progress">
+                  <div className="ids-progress-bar" style={{ width: `${captureProgress.total ? (captureProgress.done / captureProgress.total) * 100 : 0}%` }} />
+                  <span className="ids-progress-label">{t("ids.bcfGenerating", { done: captureProgress.done, total: captureProgress.total })}</span>
+                </div>
+              </div>
+            </div>
+          )}
           {(loadError || addModelError) && (
             <div style={{ position: "absolute", top: 12, left: 12, right: 12, zIndex: 12, display: "flex", flexDirection: "column", gap: 8 }}>
               {loadError && (
@@ -1380,6 +1437,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
                 bcfProject={bcfProject}
                 onBcfProject={onBcfProject}
                 onOpenBcf={() => setDock("bcf")}
+                onCaptureSnapshots={runSnapshotCapture}
                 fileName={fileName}
                 onShow={onClashShow}
                 onReset={onClashReset}

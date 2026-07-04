@@ -50,6 +50,70 @@ export function removeTopicFromProject(
   project.topics.delete(guid);
 }
 
+// --- import repair ----------------------------------------------------------
+// @ifc-lite/bcf's regex-based reader has two interop defects (found by
+// tests/bcf.test.ts): (1) comment TEXT is lost entirely on read, and (2) XML
+// entities (&quot; &lt; …) are left encoded in every text field. Any conformant
+// .bcfzip (including our own exports) hits both. Until fixed upstream, the app
+// imports through readBcfFile(), which re-extracts comments from the raw markup
+// and decodes entities. Best-effort: on any repair failure the base read stands.
+
+/** Decode the XML character entities used by BCF markup (amp handled last). */
+function decodeXml(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&amp;/g, "&");
+}
+
+/** Read a .bcfzip with the library, then repair comment text + XML entities. */
+export async function readBcfFile(
+  data: File | Blob | ArrayBuffer,
+): Promise<import("@ifc-lite/bcf").BCFProject> {
+  const buf = data instanceof ArrayBuffer ? data : await data.arrayBuffer();
+  const project = await readBCF(buf);
+  try {
+    const { default: JSZip } = await import("jszip");
+    const zip = await JSZip.loadAsync(buf);
+    for (const [guid, topic] of project.topics) {
+      // Re-extract comment texts (the reader drops them): the markup nests a
+      // <Comment> text tag inside the <Comment Guid="…"> element.
+      const entry = zip.files[`${guid}/markup.bcf`];
+      const fixed = new Set<string>();
+      if (entry) {
+        const xml = await entry.async("string");
+        const texts = new Map<string, string>();
+        for (const m of xml.matchAll(/<Comment\s+Guid="([^"]+)"[\s\S]*?<Comment>([\s\S]*?)<\/Comment>/g)) {
+          texts.set(m[1], decodeXml(m[2]));
+        }
+        for (const c of topic.comments) {
+          const text = texts.get(c.guid);
+          if (text != null) {
+            c.comment = text;
+            fixed.add(c.guid);
+          }
+        }
+      }
+      topic.title = decodeXml(topic.title);
+      if (topic.description != null) topic.description = decodeXml(topic.description);
+      if (topic.assignedTo != null) topic.assignedTo = decodeXml(topic.assignedTo);
+      if (topic.labels) topic.labels = topic.labels.map(decodeXml);
+      for (const c of topic.comments) {
+        c.author = decodeXml(c.author);
+        if (!fixed.has(c.guid)) c.comment = decodeXml(c.comment);
+      }
+    }
+    if (project.name) project.name = decodeXml(project.name);
+  } catch {
+    /* repair is best-effort */
+  }
+  return project;
+}
+
 /** Single-model identifier used for BCF modelId and the "modelId:expressId" keys. */
 export const MODEL_ID = "model";
 

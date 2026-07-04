@@ -13,7 +13,7 @@ import {
   addTopicToProject,
   updateTopicStatus,
   removeTopicFromProject,
-  readBCF,
+  readBcfFile,
   downloadBcf,
   expressIdsToGlobalIds,
 } from "../ifc/bcf";
@@ -110,8 +110,8 @@ export function BcfPanel({
     try {
       let viewpointGuid: string | undefined;
       if (attachView && engine && store) {
-        const camera = engine.getCameraState();
-        const bounds = engine.getModelBoundsState() ?? undefined;
+        const camera = engine.getCameraStateForBcf();
+        const bounds = engine.getModelBoundsStateForBcf() ?? undefined;
         const selectedGuids = expressIdsToGlobalIds(store, selectedIds);
         const snapshot = await engine.screenshot();
         const vp = createViewpoint({ camera, bounds, selectedGuids, snapshot: snapshot ?? undefined });
@@ -149,8 +149,8 @@ export function BcfPanel({
     setNote(null);
     setError(null);
     try {
-      const camera = engine.getCameraState();
-      const bounds = engine.getModelBoundsState() ?? undefined;
+      const camera = engine.getCameraStateForBcf();
+      const bounds = engine.getModelBoundsStateForBcf() ?? undefined;
       const selectedGuids = expressIdsToGlobalIds(store, selectedIds);
       const snapshot = await engine.screenshot();
       const viewpoint = createViewpoint({ camera, bounds, selectedGuids, snapshot: snapshot ?? undefined });
@@ -185,7 +185,7 @@ export function BcfPanel({
     setError(null);
     setBusy(true);
     try {
-      const imported = await readBCF(file);
+      const imported = await readBcfFile(file);
       if (bcfProject) {
         for (const topic of imported.topics.values()) addTopicToProject(bcfProject, topic);
         onBcfProject({ ...bcfProject });

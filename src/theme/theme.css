@@ -1266,6 +1266,35 @@ table.summary td.k {
   background: var(--viewer-bg);
   box-shadow: var(--shadow);
 }
+/* Opaque cover shown while capturing BCF snapshots — hides the camera churn so
+   the user only sees a progress bar. */
+.viewer-capture-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  background: var(--viewer-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.viewer-capture-cover .capture-box {
+  width: min(360px, 70%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+/* "Attach view snapshots" toggle next to the BCF export buttons. */
+.ids-attach-views {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+}
 /* Canvas + postproduction overlay always fill the host, so resizing a panel
    stretches them smoothly (no flicker); the renderer re-sizes crisply after. */
 .viewer-host > canvas,

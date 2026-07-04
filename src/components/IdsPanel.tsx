@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { parseIdsXml, runIdsValidation } from "../ifc/ids";
+import { printIdsReport, idsReportCsv } from "../ifc/idsReport";
+import { csvDownload } from "../viewer/pivot";
 import type { IDSDocument, IDSValidationReport, IDSSpecificationResult, IDSEntityResult } from "../ifc/ids";
 import { useI18n } from "../i18n/react";
 import { ToolIcon, UiIcon } from "./icons";
@@ -11,8 +13,9 @@ interface Props {
   onReport: (r: IDSValidationReport | null) => void;
   /** Select + zoom this element in the 3D view (same tab). */
   onSelectEntity: (expressId: number) => void;
-  /** Turn the current report's failures into BCF topics (optional). */
-  onExportBcf?: (report: IDSValidationReport) => void;
+  /** Turn the current report's failures into BCF topics with per-element
+   *  viewpoints (optional). `withSnapshots` also captures thumbnails (slower). */
+  onExportBcf?: (report: IDSValidationReport, withSnapshots: boolean) => Promise<void> | void;
   /** Open the IDS creator/editor modal. */
   onOpenEditor?: () => void;
   /** Promote a just-uploaded IDS to the active document (so the button becomes
@@ -124,6 +127,8 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [bcfBusy, setBcfBusy] = useState(false);
+  const [attachViews, setAttachViews] = useState(false);
 
   const clearReport = () => { onReport(null); setIdsName(null); setError(null); };
   const discardDraft = () => { onDiscardDraft?.(); clearReport(); setConfirmingDiscard(false); };
@@ -171,6 +176,17 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
           <button className="ids-icon" title={t("ids.upload")} onClick={() => inputRef.current?.click()} disabled={validating}>
             <UiIcon kind="upload" />
           </button>
+          {report && (
+            <>
+              <button className="ids-icon" title={t("ids.reportTitle")} aria-label={t("ids.reportTitle")} onClick={() => printIdsReport(report)}>
+                <UiIcon kind="print" />
+              </button>
+              <button className="ids-icon" title={t("dataTable.exportCsv")} aria-label={t("dataTable.exportCsv")}
+                onClick={() => csvDownload(idsReportCsv(report), (report.document.info.title || "ids").replace(/[^\w.-]+/g, "_") + "-report")}>
+                <UiIcon kind="csv" />
+              </button>
+            </>
+          )}
           {hasActiveDoc ? (
             <button className="ids-icon" title={t("ids.discardDraft")} onClick={() => setConfirmingDiscard(true)}>
               <UiIcon kind="trash" />
@@ -259,9 +275,26 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
             <div className="ids-tip">{t("ids.tip")}</div>
 
             {onExportBcf && s.totalEntitiesFailed > 0 && (
-              <button className="btn ids-export-btn" onClick={() => onExportBcf(report)}>
-                {t("ids.createBcf")}
-              </button>
+              <>
+                <label className="ids-attach-views">
+                  <input type="checkbox" checked={attachViews} onChange={(e) => setAttachViews(e.target.checked)} disabled={bcfBusy} />
+                  {t("ids.attachViews")}
+                </label>
+                <button
+                  className="btn ids-export-btn"
+                  disabled={bcfBusy}
+                  onClick={async () => {
+                    setBcfBusy(true);
+                    try {
+                      await onExportBcf(report, attachViews);
+                    } finally {
+                      setBcfBusy(false);
+                    }
+                  }}
+                >
+                  {bcfBusy ? t("ids.bcfPreparing") : t("ids.createBcf")}
+                </button>
+              </>
             )}
 
             <div className="ids-specs">

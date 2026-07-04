@@ -14,6 +14,8 @@ import {
 } from "../ifc/bcf";
 import { formatLength } from "../settings/format";
 import { useDockResize } from "../hooks/useDockResize";
+import type { SnapshotTask } from "../viewer/snapshot";
+import { cameraToBcf } from "../viewer/bcfCoords";
 
 // Highlight colors for a selected clash pair (Set A element / Set B element).
 const RED: Rgba = [0.86, 0.15, 0.15, 1];
@@ -38,6 +40,8 @@ interface Props {
   onBcfProject?: (p: BCFProject) => void;
   /** Open the BCF panel after clashes are sent to it. */
   onOpenBcf?: () => void;
+  /** Capture per-clash snapshots behind the viewer's cover overlay (invisible). */
+  onCaptureSnapshots?: (tasks: SnapshotTask[]) => Promise<Map<string, string>>;
   fileName: string;
   /** Isolate + color the clash pair and frame the interference region in 3D. */
   onShow: (ids: number[], colors: Map<number, Rgba>, focus?: { center: [number, number, number]; half: number }) => void;
@@ -111,7 +115,7 @@ function SetDropdown({ label, ids, models, onToggle }: {
   );
 }
 
-export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf, fileName, onShow, onReset, onClose }: Props) {
+export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf, onCaptureSnapshots, fileName, onShow, onReset, onClose }: Props) {
   const { t } = useI18n();
   const [setA, setSetA] = useState<Set<string>>(() => new Set(models.length ? [models[0].id] : []));
   const [setB, setSetB] = useState<Set<string>>(
@@ -127,6 +131,8 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
   const [progress, setProgress] = useState(0);
   const [hideClosed, setHideClosed] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [bcfBusy, setBcfBusy] = useState(false);
+  const [attachViews, setAttachViews] = useState(false);
   const { height: dockH, startResize: startResizeDock } = useDockResize("dockH:clash", 360);
   const abortRef = useRef<{ aborted: boolean } | null>(null);
 
@@ -203,7 +209,9 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
     const diag = (b: ReturnType<ViewerEngine["elementBounds"]>) =>
       b ? Math.hypot(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]) : 0;
     const ctx = Math.min(diag(engine.elementBounds(row.a)), diag(engine.elementBounds(row.b))) || 2;
-    return Math.min(Math.max(row.penetration * 3, 0.4), ctx * 0.5);
+    // Floor at 0.3 m so a tiny clash box doesn't put the snapshot camera inside
+    // the near plane (which yields a blank thumbnail).
+    return Math.max(Math.min(Math.max(row.penetration * 3, 0.4), ctx * 0.5), 0.3);
   };
 
   // A camera framing the clash region, keeping the current view direction. Stored
@@ -242,37 +250,55 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
     clearance: rows.filter((r) => r.type === "clearance").length,
   }), [rows]);
 
-  const exportBcf = () => {
-    if (!visibleRows.length || !onBcfProject) return;
-    const project = bcfProject ?? createBCFProject({ name: fileName, version: "2.1" });
-    const bounds = engine.getModelBoundsState() ?? undefined;
-    let n = 0;
-    for (const row of visibleRows) {
-      if (row.status === "ignored") continue;
-      const guids = [row.guidA, row.guidB].filter(Boolean) as string[];
-      const camera = cameraForClash(row.center as [number, number, number], clashHalf(row));
-      // Isolate the two elements and color them (A red / B orange) so opening the
-      // topic reproduces the clash view instead of burying it in the model.
-      const coloredGuids = [
-        ...(row.guidA ? [{ color: "FFDB2626", guids: [row.guidA] }] : []),
-        ...(row.guidB ? [{ color: "FFFF991A", guids: [row.guidB] }] : []),
-      ];
-      const viewpoint = createViewpoint({ camera, bounds, selectedGuids: guids, visibleGuids: guids, coloredGuids });
-      const typeLabel = t(row.type === "hard" ? "clash.typeHard" : "clash.typeClearance");
-      const topic = createBCFTopic({
-        title: `Clash: ${row.aLabel} x ${row.bLabel}`,
-        description: `${typeLabel} - ${formatLength(row.penetration)} - ${row.aModel} / ${row.bModel}`,
-        author: DEFAULT_AUTHOR,
-        topicType: "Clash",
-        topicStatus: row.status === "resolved" || row.status === "approved" ? "Closed" : "Open",
-      });
-      addViewpointToTopic(topic, viewpoint);
-      addTopicToProject(project, topic);
-      n++;
-    }
-    if (n) {
-      onBcfProject({ ...project });
-      onOpenBcf?.(); // open the BCF panel so the user reviews + exports from there
+  const exportBcf = async () => {
+    if (!visibleRows.length || !onBcfProject || bcfBusy) return;
+    const included = visibleRows.filter((r) => r.status !== "ignored");
+    if (!included.length) return;
+    setBcfBusy(true);
+    try {
+      const project = bcfProject ?? createBCFProject({ name: fileName, version: "2.1" });
+      const bounds = engine.getModelBoundsStateForBcf() ?? undefined;
+      // Optional per-clash snapshots — captured behind the viewer's cover overlay
+      // (invisible). The camera is attached either way, so topics still frame the
+      // clash in BCF tools even without thumbnails.
+      const snapshots = attachViews && onCaptureSnapshots
+        ? await onCaptureSnapshots(included.map((row) => {
+            const h = clashHalf(row);
+            const c = row.center as [number, number, number];
+            return { key: row.key, min: [c[0] - h, c[1] - h, c[2] - h], max: [c[0] + h, c[1] + h, c[2] + h] };
+          }))
+        : new Map<string, string>();
+      let n = 0;
+      for (const row of included) {
+        const guids = [row.guidA, row.guidB].filter(Boolean) as string[];
+        // cameraForClash builds a render-local pose; shift it to BCF-absolute so
+        // the topic opens on the real clash in other BCF tools (georeferenced RTC).
+        const camera = cameraToBcf(cameraForClash(row.center as [number, number, number], clashHalf(row)), engine.rtcOffset);
+        // Isolate the two elements and color them (A red / B orange) so opening the
+        // topic reproduces the clash view instead of burying it in the model.
+        const coloredGuids = [
+          ...(row.guidA ? [{ color: "FFDB2626", guids: [row.guidA] }] : []),
+          ...(row.guidB ? [{ color: "FFFF991A", guids: [row.guidB] }] : []),
+        ];
+        const viewpoint = createViewpoint({ camera, bounds, selectedGuids: guids, visibleGuids: guids, coloredGuids, snapshot: snapshots.get(row.key) });
+        const typeLabel = t(row.type === "hard" ? "clash.typeHard" : "clash.typeClearance");
+        const topic = createBCFTopic({
+          title: `Clash: ${row.aLabel} x ${row.bLabel}`,
+          description: `${typeLabel} - ${formatLength(row.penetration)} - ${row.aModel} / ${row.bModel}`,
+          author: DEFAULT_AUTHOR,
+          topicType: "Clash",
+          topicStatus: row.status === "resolved" || row.status === "approved" ? "Closed" : "Open",
+        });
+        addViewpointToTopic(topic, viewpoint);
+        addTopicToProject(project, topic);
+        n++;
+      }
+      if (n) {
+        onBcfProject({ ...project });
+        onOpenBcf?.(); // open the BCF panel so the user reviews + exports from there
+      }
+    } finally {
+      setBcfBusy(false);
     }
   };
 
@@ -313,7 +339,13 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
           <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} />
           {t("clash.hideClosed")}
         </label>
-        <button className="btn secondary small" onClick={exportBcf} disabled={!visibleRows.length}>{t("clash.exportBcf")}</button>
+        <label className="clash-inline">
+          <input type="checkbox" checked={attachViews} onChange={(e) => setAttachViews(e.target.checked)} disabled={bcfBusy} />
+          {t("ids.attachViews")}
+        </label>
+        <button className="btn secondary small" onClick={exportBcf} disabled={!visibleRows.length || bcfBusy}>
+          {bcfBusy ? t("ids.bcfPreparing") : t("clash.exportBcf")}
+        </button>
         <button className="btn secondary small" onClick={exportCsv} disabled={!visibleRows.length}>{t("clash.exportCsv")}</button>
         <button className="btn secondary small" onClick={reset}>{t("clash.reset")}</button>
         <button className="clash-close" onClick={onClose} title={t("common.close")} aria-label={t("common.close")}>x</button>

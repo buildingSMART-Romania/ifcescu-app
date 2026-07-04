@@ -8,6 +8,7 @@ import { GeometryProcessor, type MeshData } from "@ifc-lite/geometry";
 import type { IfcDataStore } from "@ifc-lite/parser";
 import type { ViewerCameraState, ViewerBounds } from "@ifc-lite/bcf";
 import { parseStore } from "../ifc/store";
+import { cameraToBcf, cameraFromBcf, boundsToBcf } from "./bcfCoords";
 import { t } from "../i18n";
 
 export interface RenderState {
@@ -803,6 +804,38 @@ export class ViewerEngine {
     this.renderer.requestRender();
   }
 
+  /** Frame an AABB (render-space Y-up) INSTANTLY — no camera animation — keeping
+   *  the current view direction. Used by the deterministic snapshot capture, where
+   *  the 300ms frameBounds animation would otherwise race the screenshot. maxSize
+   *  is floored so a tiny element doesn't put the camera inside the near plane. */
+  frameBoundsInstant(min: [number, number, number], max: [number, number, number]): void {
+    const cx = (min[0] + max[0]) / 2, cy = (min[1] + max[1]) / 2, cz = (min[2] + max[2]) / 2;
+    const maxSize = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2], 0.6);
+    const cam = this.renderer.getCamera();
+    const p = cam.getPosition(), t = cam.getTarget();
+    let dx = t.x - p.x, dy = t.y - p.y, dz = t.z - p.z;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    dx /= len; dy /= len; dz /= len;
+    const fov = cam.getFOV() || Math.PI / 4;
+    const dist = (maxSize / 2) / Math.tan(fov / 2) * 1.4;
+    cam.setTarget(cx, cy, cz);
+    cam.setPosition(cx - dx * dist, cy - dy * dist, cz - dz * dist);
+    this.renderer.requestRender();
+  }
+
+  /** Draw the current camera/state to the canvas SYNCHRONOUSLY (the render-loop's
+   *  render call), so a screenshot() right after captures the intended frame
+   *  instead of a stale one. */
+  renderNow(): void {
+    this.renderer.render({
+      clearColor: this.state.clearColor,
+      hiddenIds: this.state.hiddenIds,
+      isolatedIds: this.state.isolatedIds,
+      selectedIds: this.state.selectedIds,
+      sectionPlane: this.state.sectionPlane ?? undefined,
+    });
+  }
+
   /** Frame ALL loaded (federated) models — a single deterministic view that
    *  always frames everything currently loaded. */
   fit(): void {
@@ -914,6 +947,39 @@ export class ViewerEngine {
       min: { x: b.min[0], y: b.min[1], z: b.min[2] },
       max: { x: b.max[0], y: b.max[1], z: b.max[2] },
     };
+  }
+
+  // --- BCF-absolute variants (RTC-un-shifted) -----------------------------
+  // The renderer works in RTC-local coords; the @ifc-lite/bcf helpers do the
+  // Y-up↔Z-up flip but NOT the RTC translation, so BCF viewpoints must be fed
+  // ABSOLUTE (RTC-un-shifted) coords or they point to the wrong place in other
+  // BCF tools. These add the RTC offset back (no-op when rtcOffset is 0).
+
+  /** Camera pose in BCF-absolute (still Y-up) coords, ready for createViewpoint. */
+  getCameraStateForBcf(): ViewerCameraState {
+    return cameraToBcf(this.getCameraState(), this.rtcOffset);
+  }
+
+  /** Model bounds in BCF-absolute (still Y-up) coords. */
+  getModelBoundsStateForBcf(): ViewerBounds | null {
+    const b = this.getModelBoundsState();
+    return b ? boundsToBcf(b, this.rtcOffset) : null;
+  }
+
+  /** One element's AABB in BCF-absolute (still Y-up) {min,max} object form. */
+  elementBoundsForBcf(id: number): ViewerBounds | null {
+    const b = this.elementBounds(id);
+    if (!b) return null;
+    return boundsToBcf(
+      { min: { x: b.min[0], y: b.min[1], z: b.min[2] }, max: { x: b.max[0], y: b.max[1], z: b.max[2] } },
+      this.rtcOffset,
+    );
+  }
+
+  /** Apply a camera pose extracted from a BCF viewpoint (BCF-absolute Y-up),
+   *  converting back to the renderer's RTC-local space first. */
+  applyBcfCameraState(s: ViewerCameraState): void {
+    this.applyCameraState(cameraFromBcf(s, this.rtcOffset));
   }
 
   // --- per-element color overrides (e.g. IDS non-conforming = red) --------

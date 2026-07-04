@@ -98,14 +98,21 @@ or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-ap
 - **IDS** — validate the primary model against an uploaded IDS specification, **and author
   IDS in-app**: the IDS creator (✎) builds specifications across all six facets
   (Entity/Attribute/Property/Classification/Material/PartOf), exports a `.ids`, loads an
-  existing one to edit, and validates directly against the model.
+  existing one to edit, and validates directly against the model. The validation report
+  exports as a **printable PDF** and a **CSV** (one row per failed requirement) — the
+  deliverables for audits and certification exams.
 - **BCF** — full topic collaboration: create topics from the current view, **add comments** (optionally
   with the current view attached), **edit status / type / priority / assignee / due date**, and **delete**
   topics; import/export `.bcfzip`; and **open a topic's viewpoint** (↗ 3D) to reproduce it in 3D — camera
   + isolation + coloring + selection (so topics generated from IDS validation or clash detection restore
   their exact view), with a **Reset the view** button that returns the model to a neutral state (full
   visibility, no isolation/coloring/selection, including the IDS overlay). BCF enum values are kept
-  verbatim for round-trip fidelity.
+  verbatim for round-trip fidelity. Topics **generated from IDS failures or clashes** carry a
+  **per-element viewpoint** (a camera framing the element) so each issue opens onto its element in
+  external BCF tools (BIMcollab, Solibri, …); an **Attach view snapshots** toggle optionally embeds a
+  per-topic thumbnail, captured in the background (the 3D view isn't disturbed — only a progress bar
+  shows). Camera coordinates are written in the model's real IFC space (RTC un-shifted), so viewpoints
+  land correctly on **georeferenced** models too.
 - **Globe (Cesium)** — place georeferenced models (or models already in real Stereo 70
   coordinates) on a token-free 3D world map with OSM/Esri basemaps, terrain, and an
   earth-transparency slider; a bundled **EGM2008** geoid grid provides the geoid
@@ -168,6 +175,19 @@ The suite lives in `tests/`:
 
 - **`geo.test.ts`** — crs (Stereo 70 ↔ WGS84), geoid undulation, and placement-mode
   unit tests. Pure math; always runs.
+- **`idsReport.test.ts`** — the IDS validation-report exports: the flat CSV (one row per
+  failed requirement, RFC-4180 escaping) and the printable HTML document (self-contained,
+  HTML-escaped). Pure; always runs.
+- **`bcf.test.ts`** — BCF 2.1 interoperability: a full headless `writeBCF` → read round-trip
+  (topic metadata, comments, viewpoint camera, selection GUIDs, snapshot), the standard
+  `.bcfzip` structure (bcf.version, markup.bcf, viewpoint/snapshot files), the IDS → BCF
+  reporter, and a sentinel documenting the upstream reader defects that `readBcfFile`'s
+  repair pass works around. Also asserts IDS viewpoints get a real camera + snapshot when
+  entity bounds/snapshots are supplied. Always runs.
+- **`bcfCoords.test.ts`** — BCF coordinate correctness for georeferenced (RTC-shifted) models:
+  the render-local ↔ BCF-absolute camera/bounds transforms round-trip to identity, are a no-op
+  when RTC is zero, and (composed with the library's Y-up↔Z-up flip) equal the engine's
+  `worldToIfc`. Pure; always runs.
 - **`idsWriter.test.ts`** — the IDS serializer: round-trips an authored `IDSDocument`
   (every facet + constraint) through `serializeIds` → `parseIdsXml` and audits the XML.
   Always runs.
