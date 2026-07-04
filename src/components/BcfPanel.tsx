@@ -79,8 +79,21 @@ export function BcfPanel({
   const [commentDraft, setCommentDraft] = useState("");
   const [attachView, setAttachView] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const topics = bcfProject ? [...bcfProject.topics.values()] : [];
+  // Search over title/description/author/assignee + a status dropdown built from
+  // the statuses actually present, so BCF exports with dozens of topics stay
+  // navigable without scrolling.
+  const q = query.trim().toLowerCase();
+  const statusValues = [...new Set(topics.map((tp) => tp.topicStatus).filter(Boolean))] as string[];
+  const visibleTopics = topics.filter((tp) => {
+    if (statusFilter && tp.topicStatus !== statusFilter) return false;
+    if (!q) return true;
+    return [tp.title, tp.description ?? "", tp.creationAuthor, tp.assignedTo ?? "", tp.topicType ?? ""]
+      .some((s) => s.toLowerCase().includes(q));
+  });
   const ext = bcfProject?.extensions;
   const fmtDate = (iso?: string) => {
     if (!iso) return "";
@@ -270,12 +283,53 @@ export function BcfPanel({
         </div>
 
         <div className="bcf-topics">
-          <div className="bcf-topics-head">{t("bcf.topicsHead", { n: topics.length })}</div>
+          <div className="bcf-topics-head">
+            {q || statusFilter
+              ? t("bcf.topicsFiltered", { n: visibleTopics.length, total: topics.length })
+              : t("bcf.topicsHead", { n: topics.length })}
+          </div>
+          {topics.length > 0 && (
+            <div className="bcf-filter">
+              <div className="ifctree-search bcf-filter-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+                <input
+                  type="text"
+                  value={query}
+                  placeholder={t("bcf.search")}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                {query && (
+                  <span
+                    className="tree-search-clear"
+                    role="button"
+                    tabIndex={0}
+                    title={t("tree.searchClear")}
+                    aria-label={t("tree.searchClear")}
+                    onClick={() => setQuery("")}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setQuery(""); } }}
+                  >×</span>
+                )}
+              </div>
+              {statusValues.length > 1 && (
+                <select
+                  className="bcf-filter-status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label={t("bcf.status")}
+                >
+                  <option value="">{t("bcf.filterAll")}</option>
+                  {statusValues.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              )}
+            </div>
+          )}
           {topics.length === 0 ? (
             <div className="bcf-empty">{t("bcf.noTopics")}</div>
+          ) : visibleTopics.length === 0 ? (
+            <div className="bcf-empty">{t("tree.noResults")}</div>
           ) : (
             <ul>
-              {topics.map((topic) => {
+              {visibleTopics.map((topic) => {
                 const open = openGuid === topic.guid;
                 return (
                   <li key={topic.guid} className={"bcf-topic" + (open ? " open" : "")}>

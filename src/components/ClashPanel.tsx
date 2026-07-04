@@ -130,6 +130,7 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
   const [hasRun, setHasRun] = useState(false);
   const [progress, setProgress] = useState(0);
   const [hideClosed, setHideClosed] = useState(false);
+  const [query, setQuery] = useState("");
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [bcfBusy, setBcfBusy] = useState(false);
   const [attachViews, setAttachViews] = useState(false);
@@ -241,10 +242,16 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
 
   const reset = () => { setActiveKey(null); onReset(); };
 
-  const visibleRows = useMemo(
-    () => (hideClosed ? rows.filter((r) => !CLOSED.includes(r.status)) : rows),
-    [rows, hideClosed],
-  );
+  const visibleRows = useMemo(() => {
+    let out = hideClosed ? rows.filter((r) => !CLOSED.includes(r.status)) : rows;
+    const q = query.trim().toLowerCase();
+    if (q) {
+      out = out.filter((r) =>
+        [r.aLabel, r.bLabel, r.aModel, r.bModel, r.guidA ?? "", r.guidB ?? ""].some((s) => s.toLowerCase().includes(q)),
+      );
+    }
+    return out;
+  }, [rows, hideClosed, query]);
   const counts = useMemo(() => ({
     hard: rows.filter((r) => r.type === "hard").length,
     clearance: rows.filter((r) => r.type === "clearance").length,
@@ -304,7 +311,7 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
 
   const exportCsv = () => {
     if (!visibleRows.length) return;
-    const head = [t("clash.typeHard"), t("clash.elementA"), t("clash.modelA"), t("clash.elementB"), t("clash.modelB"), t("clash.penetration"), t("clash.status")];
+    const head = [t("clash.type"), t("clash.elementA"), t("clash.modelA"), t("clash.elementB"), t("clash.modelB"), t("clash.penetration"), t("clash.status")];
     const esc = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
     const lines = [head.map(esc).join(",")];
     for (const r of visibleRows) {
@@ -335,6 +342,16 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
           {hasRun ? t("clash.summary", { total: String(rows.length), hard: String(counts.hard), clearance: String(counts.clearance) }) : ""}
         </span>
         <span className="clash-spacer" />
+        {rows.length > 0 && (
+          <input
+            className="clash-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("clash.search")}
+            aria-label={t("clash.search")}
+          />
+        )}
         <label className="clash-inline">
           <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} />
           {t("clash.hideClosed")}
@@ -389,7 +406,7 @@ export function ClashPanel({ engine, models, bcfProject, onBcfProject, onOpenBcf
           <table className="clash-table">
             <thead>
               <tr>
-                <th>{t("clash.typeHard")}</th>
+                <th>{t("clash.type")}</th>
                 <th>{t("clash.elementA")}</th>
                 <th>{t("clash.elementB")}</th>
                 <th>{t("clash.penetration")}</th>

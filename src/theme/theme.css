@@ -1170,6 +1170,50 @@ table.summary td.k {
   color: var(--muted);
   font-size: 0.82rem;
 }
+/* Inline search input in the clash dock's top bar (same look as .ifctree-search input). */
+.clash-search {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  color: var(--text);
+  outline: none;
+  width: 190px;
+  min-width: 0;
+}
+.clash-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
+}
+/* BCF topic list filter row: search (reuses .ifctree-search) + status select. */
+.bcf-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.bcf-filter .ifctree-search {
+  flex: 1;
+  padding: 0;
+  border-bottom: none;
+}
+.bcf-filter-status {
+  flex: 0 0 auto;
+  max-width: 45%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+/* Search rows embedded in the props panel / IDS report (no full-width divider). */
+.pacc-search,
+.ids-entity-search {
+  padding: 6px 0;
+  border-bottom: none;
+}
 .ifctree-toolbar {
   flex: 0 0 auto;
   display: flex;
@@ -2192,7 +2236,8 @@ table.summary td.k {
   color: var(--danger, #d33);
   border-color: var(--danger, #d33);
 }
-.bcf-confirm {
+.bcf-confirm,
+.models-confirm {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2202,7 +2247,9 @@ table.summary td.k {
   background: var(--surface-2);
   border-radius: 8px;
 }
-.bcf-confirm span { flex: 1; }
+.bcf-confirm span,
+.models-confirm span { flex: 1; }
+.models-confirm { margin: 2px 6px 6px; }
 .btn.small.danger { background: var(--danger, #d33); border-color: var(--danger, #d33); color: #fff; }
 .btn.small.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 

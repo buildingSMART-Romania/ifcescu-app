@@ -11,7 +11,7 @@ import {
   type PivotRow,
   type ValueColumn,
 } from "./pivot";
-import { t } from "../i18n";
+import { getLang, t } from "../i18n";
 
 // Base quantities to sum, in report order — only those present in the model are kept.
 const BOQ_QUANTITIES = ["NetVolume", "GrossVolume", "NetArea", "GrossArea", "Length", "Width", "Height", "Weight"];
@@ -30,11 +30,12 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-const numFmt = new Intl.NumberFormat("ro-RO", { maximumFractionDigits: 2 });
-const fmtNum = (v: number | null) => (v == null ? "" : numFmt.format(v));
-
 /** Render the pivot as a printable HTML report and open the print dialog. */
 export function printBoqReport(result: PivotResult, config: PivotConfig, fields: FieldDef[], fileName: string): void {
+  const lang = getLang();
+  const locale = lang === "en" ? "en-US" : "ro-RO";
+  const numFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+  const fmtNum = (v: number | null) => (v == null ? "" : numFmt.format(v));
   const depth = config.groupBy.length;
   const groupHeaders = config.groupBy.map((k) => fieldByKey(fields, k)?.label ?? k);
   const headers = [...groupHeaders, t("dataTable.count"), ...result.columns.map((c) => c.label)];
@@ -67,8 +68,8 @@ export function printBoqReport(result: PivotResult, config: PivotConfig, fields:
       "</tr>"
     : "";
 
-  const date = new Date().toLocaleDateString("ro-RO");
-  const html = `<!DOCTYPE html><html lang="ro"><head><meta charset="utf-8">
+  const date = new Date().toLocaleDateString(locale);
+  const html = `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8">
 <title>${esc(t("boq.title"))} — ${esc(fileName)}</title>
 <style>
   body { font-family: system-ui, Arial, sans-serif; color: #1a1a1a; margin: 24px; }
@@ -91,7 +92,10 @@ export function printBoqReport(result: PivotResult, config: PivotConfig, fields:
 </body></html>`;
 
   const w = window.open("", "_blank");
-  if (!w) return; // popup blocked
+  if (!w) {
+    alert(t("common.popupBlocked"));
+    return;
+  }
   w.document.write(html);
   w.document.close();
   w.focus();

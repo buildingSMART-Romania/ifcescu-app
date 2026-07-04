@@ -134,6 +134,10 @@ export function PropAccordion({ groups, favorites, onToggleFavorite }: Props) {
   const { t } = useI18n();
   // Default: first group (Atribute) open, the rest collapsed.
   const [open, setOpen] = useState<Set<string>>(() => new Set(groups[0] ? [groups[0].name] : []));
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  // Match on property name, value, or the pset name itself.
+  const matches = (r: PropRow) => r.k.toLowerCase().includes(q) || r.v.toLowerCase().includes(q);
   const toggle = (n: string) =>
     setOpen((s) => {
       const x = new Set(s);
@@ -188,21 +192,54 @@ export function PropAccordion({ groups, favorites, onToggleFavorite }: Props) {
     </table>
   );
 
+  // While searching: groups with matches are forced open, the rest are hidden
+  // entirely (same behaviour as the model tree's search). A group whose name
+  // matches keeps all its rows visible.
+  const visibleGroups = q
+    ? groups
+        .map((g) => (g.name.toLowerCase().includes(q) ? g : { ...g, rows: g.rows.filter(matches) }))
+        .filter((g) => g.rows.length > 0)
+    : groups;
+  const visibleFavRows = q ? favRows.filter(matches) : favRows;
+
   return (
     <div>
-      {favRows.length > 0 && (
+      <div className="ifctree-search pacc-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+        <input
+          type="text"
+          value={query}
+          placeholder={t("props.search")}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {query && (
+          <span
+            className="tree-search-clear"
+            role="button"
+            tabIndex={0}
+            title={t("tree.searchClear")}
+            aria-label={t("tree.searchClear")}
+            onClick={() => setQuery("")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setQuery(""); } }}
+          >×</span>
+        )}
+      </div>
+      {q && visibleGroups.length === 0 && visibleFavRows.length === 0 && (
+        <div className="tree-empty">{t("tree.noResults")}</div>
+      )}
+      {visibleFavRows.length > 0 && (
         <div className="pacc pacc-fav">
           <div className="pacc-head pacc-head-static">
             <span className="pacc-caret">★</span>
             <span className="pacc-name">{t("props.favorites")}</span>
-            <span className="pacc-count">{favRows.length}</span>
+            <span className="pacc-count">{visibleFavRows.length}</span>
           </div>
-          {rows(favRows)}
+          {rows(visibleFavRows)}
         </div>
       )}
 
-      {groups.map((g) => {
-        const isOpen = open.has(g.name);
+      {visibleGroups.map((g) => {
+        const isOpen = q ? true : open.has(g.name);
         return (
           <div className="pacc" key={g.name}>
             <button className="pacc-head" onClick={() => toggle(g.name)}>

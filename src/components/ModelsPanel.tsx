@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useI18n } from "../i18n/react";
 import { UiIcon } from "./icons";
 
@@ -28,6 +28,9 @@ interface Props {
 export function ModelsPanel({ models, busy, onToggleVisible, onRemove, onAddModel, colorByModel, onColorByModel, height }: Props) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
+  // Two-step remove (same pattern as BcfPanel's topic delete): the × only arms
+  // the inline confirm strip; removal happens on the explicit confirm button.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   return (
     <div
       className="models-panel"
@@ -47,7 +50,8 @@ export function ModelsPanel({ models, busy, onToggleVisible, onRemove, onAddMode
       )}
       <div className="models-list">
         {models.map((m) => (
-          <div className="models-row" key={m.id}>
+          <Fragment key={m.id}>
+          <div className="models-row">
             <span className="models-status" title={t("models.loaded")} />
             <span
               className="models-eye"
@@ -71,11 +75,19 @@ export function ModelsPanel({ models, busy, onToggleVisible, onRemove, onAddMode
                 tabIndex={0}
                 title={t("models.remove")}
                 aria-label={t("models.remove")}
-                onClick={() => onRemove(m.id)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRemove(m.id); } }}
+                onClick={() => setConfirmId(m.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setConfirmId(m.id); } }}
               >×</span>
             )}
           </div>
+          {confirmId === m.id && (
+            <div className="models-confirm">
+              <span>{t("models.confirmRemove")}</span>
+              <button className="btn small danger" onClick={() => { setConfirmId(null); onRemove(m.id); }}>{t("models.remove")}</button>
+              <button className="btn small secondary" onClick={() => setConfirmId(null)}>{t("common.cancel")}</button>
+            </div>
+          )}
+          </Fragment>
         ))}
       </div>
       {busy && <div className="models-busy">{t("common.loading")}</div>}

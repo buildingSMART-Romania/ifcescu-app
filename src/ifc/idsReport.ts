@@ -161,7 +161,10 @@ ${specSections.join("")}
 /** Open the printable report in a new window and invoke the print dialog. */
 export function printIdsReport(report: IDSValidationReport): void {
   const w = window.open("", "_blank");
-  if (!w) return; // popup blocked
+  if (!w) {
+    alert(t("common.popupBlocked"));
+    return;
+  }
   w.document.write(idsReportHtml(report));
   w.document.close();
   w.focus();

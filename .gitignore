@@ -4,3 +4,6 @@ dist-ssr
 *.local
 .DS_Store
 .claude/settings.local.json
+
+# Reguli interne — nu se publică niciodată
+REGULI.md

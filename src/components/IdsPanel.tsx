@@ -65,18 +65,29 @@ function SpecCard({
   open,
   onToggle,
   onSelectEntity,
+  query,
 }: {
   spec: IDSSpecificationResult;
   open: boolean;
   onToggle: () => void;
   onSelectEntity: (id: number) => void;
+  /** Report-level entity search: filters failing entities by name/GlobalId/type. */
+  query: string;
 }) {
   const { t } = useI18n();
-  const failing = spec.entityResults.filter((e) => !e.passed);
+  const q = query.trim().toLowerCase();
+  const failing = spec.entityResults.filter(
+    (e) =>
+      !e.passed &&
+      (!q || [e.entityName ?? "", e.globalId ?? "", e.entityType].some((s) => s.toLowerCase().includes(q))),
+  );
+  // While searching, specs with matches open themselves and the rest collapse
+  // to their summary line (same behaviour as the model tree's search).
+  const isOpen = q ? failing.length > 0 : open;
   return (
     <div className="pacc">
       <button className="pacc-head" onClick={onToggle}>
-        <span className="pacc-caret">{open ? "▾" : "▸"}</span>
+        <span className="pacc-caret">{isOpen ? "▾" : "▸"}</span>
         <span className="pacc-name" title={spec.specification.name}>
           {spec.specification.name}
         </span>
@@ -85,7 +96,7 @@ function SpecCard({
           {spec.passedCount}/{spec.applicableCount}
         </span>
       </button>
-      {open && (
+      {isOpen && (
         <div className="ids-spec-body">
           {spec.specification.description && (
             <div className="ids-spec-desc">{spec.specification.description}</div>
@@ -129,6 +140,7 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [bcfBusy, setBcfBusy] = useState(false);
   const [attachViews, setAttachViews] = useState(false);
+  const [entityQuery, setEntityQuery] = useState("");
 
   const clearReport = () => { onReport(null); setIdsName(null); setError(null); };
   const discardDraft = () => { onDiscardDraft?.(); clearReport(); setConfirmingDiscard(false); };
@@ -297,6 +309,29 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
               </>
             )}
 
+            {s.totalEntitiesFailed > 0 && (
+              <div className="ifctree-search ids-entity-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+                <input
+                  type="text"
+                  value={entityQuery}
+                  placeholder={t("ids.searchEntities")}
+                  onChange={(e) => setEntityQuery(e.target.value)}
+                />
+                {entityQuery && (
+                  <span
+                    className="tree-search-clear"
+                    role="button"
+                    tabIndex={0}
+                    title={t("tree.searchClear")}
+                    aria-label={t("tree.searchClear")}
+                    onClick={() => setEntityQuery("")}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEntityQuery(""); } }}
+                  >×</span>
+                )}
+              </div>
+            )}
+
             <div className="ids-specs">
               {report.specificationResults.map((spec) => (
                 <SpecCard
@@ -305,6 +340,7 @@ export function IdsPanel({ bytes, fileName, report, onReport, onSelectEntity, on
                   open={open.has(spec.specification.id)}
                   onToggle={() => toggle(spec.specification.id)}
                   onSelectEntity={onSelectEntity}
+                  query={entityQuery}
                 />
               ))}
             </div>
