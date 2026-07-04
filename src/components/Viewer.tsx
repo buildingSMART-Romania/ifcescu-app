@@ -29,7 +29,7 @@ import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
 import { IdsEditorModal } from "./IdsEditorModal";
 import { FilterPanel, DEFAULT_FILTER_RULES, type FilterRule } from "./FilterPanel";
 // Lazy so Recharts only loads when the analytics panel is opened.
-const AnalyticsPanel = lazy(() => import("./AnalyticsPanel"));
+const AnalyticsPanel = lazy(() => import("./analytics/AnalyticsPanel"));
 // Lazy so the clash detection panel (and its compute) load only when opened.
 const ClashPanel = lazy(() => import("./ClashPanel"));
 import { createBCFFromIDSReport, addTopicToProject, extractViewpointState, globalIdsToExpressIds, type BCFProject, type BCFViewpoint } from "../ifc/bcf";

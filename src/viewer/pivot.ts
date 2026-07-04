@@ -394,8 +394,22 @@ function rowSort(a: PivotRow, b: PivotRow): number {
 // Standard RFC-4180 CSV: comma separator, dot decimal, CRLF, fields quoted when
 // they contain a comma/quote/newline. (Numbers use a dot decimal and FP noise is
 // trimmed to 6 decimals.) A UTF-8 BOM keeps diacritics correct in Excel.
-const fmtNum = (v: number | null) => (v == null ? "" : String(Number(v.toFixed(6))));
-const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+// Exported so other CSV producers (analytics card export) share one dialect.
+export const fmtCsvNum = (v: number | null) => (v == null ? "" : String(Number(v.toFixed(6))));
+export const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+
+/** Join CSV lines (BOM + CRLF) into a Blob and trigger a `<base>.csv` download. */
+export function csvDownload(lines: string[], baseName: string): void {
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${baseName}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 /** Flatten the pivot (one column per group level + Număr + value columns) to a
  *  standard CSV and trigger a browser download. No totals row. */
@@ -413,21 +427,13 @@ export function exportPivotCsv(result: PivotResult, config: PivotConfig, fields:
       } else {
         const cells = [...labels];
         while (cells.length < depth) cells.push("");
-        cells.push(String(row.count), ...row.values.map(fmtNum));
+        cells.push(String(row.count), ...row.values.map(fmtCsvNum));
         lines.push(cells.map(csvCell).join(","));
       }
     }
   };
   walk(result.rows, []);
 
-  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
   const base = fileName.replace(/\.[^.]+$/, "") || "model";
-  a.href = url;
-  a.download = `${base}-${t("dataTable.csvSuffix")}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  csvDownload(lines, `${base}-${t("dataTable.csvSuffix")}`);
 }

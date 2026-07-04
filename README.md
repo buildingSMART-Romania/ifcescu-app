@@ -71,12 +71,15 @@ or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-ap
   preset groups by class → material and sums the base quantities, and a **printable
   report** opens a styled page you can save as PDF.
 - **Analytics dashboard (Power BI-style, experimental, off by default)** — enable it in Settings; it opens a
-  **resizable bottom dock** (the 3D stays visible above) with movable, resizable visuals (bars, donut, treemap,
-  stacked bars by two dimensions, quantity histogram, KPI cards) over any dimension (class, material, property,
-  quantity) with count or sum measures, built on the same pivot layer. Clicking a category **cross-filters every
-  other visual** (they recompute) **and** the 3D viewer (isolates + colors the matching elements; OR within a
-  chart, AND across charts). A dependency-free drag/resize grid; charts via Recharts — lazy-loaded so it stays
-  out of the initial bundle.
+  **resizable bottom dock** (the 3D stays visible above) with movable, resizable, grid-snapped visuals — bars,
+  donut, treemap, stacked bars, histogram, line, area, ranked list, scatter/bubble, gauge with a target, KPI
+  cards, and a searchable **slicer** — over any dimension (class, material, property, quantity) with
+  count/sum/avg/min/max measures, per-card sort, top-N with an "Others" bucket, value labels, and editable
+  titles (all configured from a per-tile gear popover), built on the same pivot layer. Clicking a category
+  **cross-filters every other visual** (they recompute) **and** the 3D viewer (isolates + colors the matching
+  elements; OR within a chart, AND across charts). The dashboard layout **persists** across sessions; any tile
+  can be maximized; per-card **CSV and PNG export**. A dependency-free drag/resize grid; charts via Recharts —
+  lazy-loaded so it stays out of the initial bundle.
 - **Clash detection** — a toolbar button opens a **resizable bottom
   dock** (the 3D stays visible above) that checks **geometric interference** between two element sets (**Set A x
   Set B**, by model). It finds **hard clashes** (overlapping geometry) and **clearance clashes** (gap below a

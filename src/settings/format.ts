@@ -25,3 +25,10 @@ export function formatArea(m2: number): string {
   if (area === "ha") return `${(m2 / 10_000).toFixed(Math.max(coordDecimals(), 4))} ha`;
   return `${m2.toFixed(coordDecimals())} m²`;
 }
+
+/** Locale number formatter honoring the decimals setting (grouping included).
+ *  Used by the analytics dashboard for axis ticks, labels, and KPI values. */
+export function numberFormat(locale: string, decimals: number = coordDecimals()): Intl.NumberFormat {
+  const d = Number.isFinite(decimals) && decimals >= 0 && decimals <= 6 ? Math.round(decimals) : 3;
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: d });
+}

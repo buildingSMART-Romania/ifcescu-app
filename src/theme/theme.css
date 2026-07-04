@@ -3099,6 +3099,81 @@ table.summary td.k {
 .an-kpi-big { font-size: 2.2rem; font-weight: 800; color: var(--text); line-height: 1.1; }
 .an-kpi-cap { font-size: 0.78rem; color: var(--muted); margin-top: 4px; text-align: center; }
 
+/* Tile header: title as the drag handle + compact icon actions. */
+.an-tile-title {
+  flex: 1; min-width: 0;
+  font-size: 0.78rem; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.an-tile-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+.an-icon-btn {
+  background: none; border: none; padding: 1px 4px; border-radius: 5px;
+  color: var(--muted); cursor: pointer; font-size: 0.82rem; line-height: 1.2;
+}
+.an-icon-btn:hover { background: var(--surface); color: var(--text); }
+
+/* Maximized tile fills the dock canvas (inline geo is omitted while active). */
+.an-tile--max { inset: 8px; z-index: 5; }
+
+/* Config popover (gear) — floats over the tile body. */
+.an-editor {
+  position: absolute; top: 34px; right: 6px; z-index: 6;
+  width: 250px; max-height: calc(100% - 42px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.an-editor-row { display: flex; align-items: center; gap: 8px; }
+.an-editor-row > label { flex: 0 0 88px; font-size: 0.74rem; color: var(--muted); }
+.an-editor-ctl { flex: 1; display: flex; gap: 4px; min-width: 0; }
+.an-editor-ctl select, .an-editor-ctl input[type="text"], .an-editor-ctl input[type="number"] {
+  flex: 1; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 3px 6px; font-size: 0.76rem; color: var(--text); outline: none;
+}
+
+/* Ranked list (table visual). */
+.an-table { height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.an-table-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; padding: 3px 4px; border-radius: 6px;
+  font: inherit; font-size: 0.78rem; color: var(--text); cursor: pointer; text-align: left;
+}
+.an-table-row:hover { background: var(--surface-2); }
+.an-table-row.sel { background: var(--surface-2); }
+.an-table-rank { flex: 0 0 20px; color: var(--muted); font-size: 0.72rem; text-align: right; }
+.an-table-label { flex: 0 0 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-table-track { flex: 1; height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; }
+.an-table-bar { display: block; height: 100%; border-radius: 5px; }
+.an-table-val { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.76rem; }
+
+/* Slicer visual. */
+.an-slicer { height: 100%; display: flex; flex-direction: column; gap: 6px; }
+.an-slicer-top { display: flex; gap: 6px; align-items: center; }
+.an-slicer-top input[type="search"] {
+  flex: 1; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 8px; font-size: 0.78rem; color: var(--text); outline: none;
+}
+.an-slicer-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.an-slicer-row {
+  display: flex; align-items: center; gap: 6px; padding: 3px 4px;
+  font-size: 0.78rem; color: var(--text); cursor: pointer; border-radius: 6px;
+}
+.an-slicer-row:hover { background: var(--surface-2); }
+.an-slicer-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; }
+.an-slicer-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-slicer-count { flex: 0 0 auto; color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.an-slicer-more { padding: 4px; color: var(--muted); font-size: 0.72rem; text-align: center; }
+
+/* Gauge: chart + centered overlay text. */
+.an-gauge { position: relative; height: 100%; }
+.an-gauge-overlay {
+  position: absolute; inset: 0; top: 30%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+
 /* --- Clash detection dock (reuses the .an-dock shell) ------------------- */
 .btn.small { padding: 5px 12px; font-size: 0.8rem; border-radius: 7px; }
 .clash-close {
