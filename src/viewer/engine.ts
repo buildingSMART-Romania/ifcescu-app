@@ -77,6 +77,11 @@ export class ViewerEngine {
   private readonly bounds = new Map<number, Bounds>();
   // Retained per-element world-space geometry (Y-up) for the selection outline.
   private readonly geom = new Map<number, { pos: Float32Array; idx: Uint32Array }[]>();
+  // Per-element plan direction of the LOCAL X axis (from the resolved
+  // IfcLocalPlacement chain) — the element's own axis (direction of travel for
+  // road parts, wall axis, …). Used by the quantity calculator to label
+  // Length/Width by orientation instead of by magnitude.
+  private readonly axisHints = new Map<number, [number, number]>();
   private readonly snapCache = new Map<number, { verts: Float32Array; edges: Uint32Array } | null>();
   // Welded sharp-edge segments per element, built lazily by setSelectionOutline
   // (welding is expensive; re-selecting must not redo it). Invalidated alongside
@@ -248,6 +253,13 @@ export class ViewerEngine {
     return list && list.length ? list : null;
   }
 
+  /** Plan direction (unit [x,z], world Y-up) of the element's LOCAL X axis —
+   *  its own orientation from the placement chain. Null when unknown or when
+   *  the local X is near-vertical. */
+  elementAxisHint(id: number): [number, number] | null {
+    return this.axisHints.get(id) ?? null;
+  }
+
   /** Map a global id back to its owning model + local expressId + store. */
   resolveGlobal(globalId: number): { modelId: string; store: IfcDataStore; localId: number } | null {
     const r = this.fed.fromGlobalId(globalId);
@@ -373,6 +385,7 @@ export class ViewerEngine {
       this.geom.delete(g);
       this.snapCache.delete(g);
       this.edgeCache.delete(g);
+      this.axisHints.delete(g);
     }
     this.fed.unregisterModel(modelId);
     this.models.delete(modelId);
@@ -392,6 +405,18 @@ export class ViewerEngine {
 
   /** Keep a CPU copy of world-space (Y-up) geometry so we can outline a selection. */
   private retainGeometry(m: MeshData): void {
+    // Element axis hint: the plan direction of the LOCAL X axis under the
+    // resolved placement. The row-major matrix applies column-vector style
+    // (p' = M·p), so the image of local (1,0,0) is the first COLUMN —
+    // (M[0], M[4], M[8]); its plan projection is (M[0], M[8]). Verified against
+    // the bundled infra sample (road courses: local X transverse, 3.6 m).
+    // Skipped when the local X is near-vertical in plan.
+    if (m.localToWorld && !this.axisHints.has(m.expressId)) {
+      const M = m.localToWorld;
+      const dx = M[0], dz = M[8];
+      const len = Math.hypot(dx, dz);
+      if (len > 0.5) this.axisHints.set(m.expressId, [dx / len, dz / len]);
+    }
     const [ox, oy, oz] = m.origin ?? [0, 0, 0];
     const src = m.positions;
     const pos = new Float32Array(src.length);

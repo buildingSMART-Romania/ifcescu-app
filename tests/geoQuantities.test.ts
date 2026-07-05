@@ -73,6 +73,71 @@ function ribbon(R: number, theta: number, w: number, t: number, climb: number, N
   return { pos, idx: new Uint32Array(idx) };
 }
 
+/** Watertight plate W×D×t (world Y-up; plan = XZ) with a rectangular cutout
+ *  [hx0,hx1]×[hz0,hz1]. Top/bottom are a 3×3 cell grid minus the centre cell;
+ *  outer + hole walls close the solid. Consistent OUTWARD winding (hole walls
+ *  face into the opening). */
+function plateWithHole(W: number, D: number, t: number, hx0: number, hx1: number, hz0: number, hz1: number): GeoPart {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const P = (x: number, y: number, z: number) => {
+    pos.push(x, y, z);
+    return pos.length / 3 - 1;
+  };
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => {
+    const i0 = P(a[0], a[1], a[2]), i1 = P(b[0], b[1], b[2]), i2 = P(c[0], c[1], c[2]), i3 = P(d[0], d[1], d[2]);
+    idx.push(i0, i1, i2, i0, i2, i3);
+  };
+  const xs = [0, hx0, hx1, W];
+  const zs = [0, hz0, hz1, D];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      if (i === 1 && j === 1) continue; // the opening
+      const xa = xs[i], xb = xs[i + 1], za = zs[j], zb = zs[j + 1];
+      quad([xa, t, za], [xa, t, zb], [xb, t, zb], [xb, t, za]); // top (+Y)
+      quad([xa, 0, za], [xb, 0, za], [xb, 0, zb], [xa, 0, zb]); // bottom (−Y)
+    }
+  }
+  // Outer walls (outward normals −X / +X / −Z / +Z).
+  quad([0, 0, 0], [0, 0, D], [0, t, D], [0, t, 0]);
+  quad([W, 0, 0], [W, t, 0], [W, t, D], [W, 0, D]);
+  quad([0, 0, 0], [0, t, 0], [W, t, 0], [W, 0, 0]);
+  quad([0, 0, D], [W, 0, D], [W, t, D], [0, t, D]);
+  // Hole walls (outward = into the opening: +X / −X / +Z / −Z).
+  quad([hx0, 0, hz0], [hx0, t, hz0], [hx0, t, hz1], [hx0, 0, hz1]);
+  quad([hx1, 0, hz0], [hx1, 0, hz1], [hx1, t, hz1], [hx1, t, hz0]);
+  quad([hx0, 0, hz0], [hx1, 0, hz0], [hx1, t, hz0], [hx0, t, hz0]);
+  quad([hx0, 0, hz1], [hx0, t, hz1], [hx1, t, hz1], [hx1, 0, hz1]);
+  return { pos: new Float32Array(pos), idx: new Uint32Array(idx) };
+}
+
+/** Tapered ("feathered") plate: L×D in plan, top height h·sin(πx/L) — the
+ *  thickness feathers to ZERO at both ends, so the top face meets the bottom
+ *  face at the rim and shares its vertices (the real motorway-layer case that
+ *  erases the outline from the parity boundary). Consistent outward winding. */
+function taperedPlate(L: number, D: number, h: number, N = 64): GeoPart {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const P = (x: number, y: number, z: number) => {
+    pos.push(x, y, z);
+    return pos.length / 3 - 1;
+  };
+  const emit = (a: number[], b: number[], c: number[], d: number[]) => {
+    const i0 = P(a[0], a[1], a[2]), i1 = P(b[0], b[1], b[2]), i2 = P(c[0], c[1], c[2]), i3 = P(d[0], d[1], d[2]);
+    idx.push(i0, i1, i2, i0, i2, i3);
+  };
+  const y = (x: number) => h * Math.sin((Math.PI * x) / L);
+  for (let i = 0; i < N; i++) {
+    const xa = (L * i) / N, xb = (L * (i + 1)) / N;
+    const ya = y(xa), yb = y(xb);
+    emit([xa, ya, 0], [xa, ya, D], [xb, yb, D], [xb, yb, 0]); // top (+Y)
+    emit([xa, 0, 0], [xb, 0, 0], [xb, 0, D], [xa, 0, D]); // bottom (−Y)
+    emit([xa, 0, 0], [xa, ya, 0], [xb, yb, 0], [xb, 0, 0]); // wall z=0 (−Z)
+    emit([xa, 0, D], [xb, 0, D], [xb, yb, D], [xa, ya, D]); // wall z=D (+Z)
+  }
+  return { pos: new Float32Array(pos), idx: new Uint32Array(idx) };
+}
+
 const boundsOf = (parts: GeoPart[]) => {
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
@@ -87,11 +152,12 @@ const boundsOf = (parts: GeoPart[]) => {
   return { min, max };
 };
 
-/** In-memory GeometrySource over id → parts. */
-function srcOf(map: Record<number, GeoPart[]>): GeometrySource {
+/** In-memory GeometrySource over id → parts (optionally with local-X axis hints). */
+function srcOf(map: Record<number, GeoPart[]>, hints?: Record<number, [number, number]>): GeometrySource {
   return {
     elementGeometryParts: (id) => map[id] ?? null,
     elementBounds: (id) => (map[id] ? boundsOf(map[id]) : null),
+    elementAxisHint: (id) => hints?.[id] ?? null,
   };
 }
 
@@ -157,7 +223,7 @@ describe("plate metrics (curvature- and slope-proof top-face dims)", () => {
 
   it("a flat rectangular plate solves exactly", () => {
     const p = box(3.6, 0.04, 20); // 3.6 × 20 m, 4 cm thick
-    const m = plateMetrics([p], partVolume(p), partArea(p))!;
+    const m = plateMetrics([p], partVolume(p), partArea(p), partFootprintArea(p))!;
     expect(m.length).toBeCloseTo(20, 4);
     expect(m.width).toBeCloseTo(3.6, 4);
     expect(m.thickness).toBeCloseTo(0.04, 6);
@@ -165,9 +231,96 @@ describe("plate metrics (curvature- and slope-proof top-face dims)", () => {
     expect(m.area).toBeCloseTo(72, 4);
   });
 
+  it("a plate with a cutout uses the OUTER outline + gross area for L/w", () => {
+    // 3.6 × 2.611 m, 4 cm thick, with a 1 × 0.7 m opening (the Infra bridge
+    // course case): the opening must NOT inflate the perimeter or shrink the
+    // solve — L/w stay the outline dims, NetArea stays net.
+    const p = plateWithHole(3.6, 2.611, 0.04, 1.3, 2.3, 0.955, 1.655);
+    const m = plateMetrics([p], partVolume(p), partArea(p), partFootprintArea(p))!;
+    expect(m.perimeter).toBeCloseTo(2 * (3.6 + 2.611), 3); // outer only
+    expect(m.length).toBeCloseTo(3.6, 1);
+    expect(m.width).toBeCloseTo(2.611, 1);
+    expect(m.area).toBeCloseTo(3.6 * 2.611 - 0.7, 3); // net (opening subtracted)
+    expect(m.thickness).toBeCloseTo(0.04, 6);
+  });
+
+  it("the placement axis relabels Length/Width on ambiguous plates (local X = transverse)", () => {
+    // A road segment WIDER (3.6 m, along plan X) than long (2.611 m): shape
+    // alone labels the 3.6 as Length. The placement hint says local X runs
+    // along the 3.6 direction — which is transverse — so Length must be 2.611.
+    const p = plateWithHole(3.6, 2.611, 0.04, 1.3, 2.3, 0.955, 1.655);
+    const m = elementMetrics(srcOf({ 1: [p] }, { 1: [1, 0] }), 1)!;
+    expect(m.plate!.length).toBeCloseTo(2.611, 1);
+    expect(m.plate!.width).toBeCloseTo(3.6, 1);
+    // Hint along the travel direction → no swap.
+    const m2 = elementMetrics(srcOf({ 1: [p] }, { 1: [0, 1] }), 1)!;
+    expect(m2.plate!.length).toBeCloseTo(3.6, 1);
+    // No hint → magnitude labeling (the existing behaviour).
+    const m3 = elementMetrics(srcOf({ 1: [p] }), 1)!;
+    expect(m3.plate!.length).toBeCloseTo(3.6, 1);
+  });
+
+  it("strongly elongated ribbons ignore an atypical placement hint (aspect ≥ 3)", () => {
+    const road = ribbon(100, 2.7, 27, 0.04, 1);
+    const m = elementMetrics(srcOf({ 1: [road] }, { 1: [1, 0] }), 1)!;
+    expect(m.plate!.length).toBeCloseTo(270, 0); // the arc stays the Length
+  });
+
+  it("an unwelded (fragmented) top face keeps area/thickness but drops the L/w split", () => {
+    // A 20 × 3.6 m layer tessellated as 4 abutting segments with 1 mm gaps at
+    // the joints (over the 0.1 mm weld quantization — the real-world motorway
+    // export case): each fragment closes its own boundary loop, so the outer
+    // outline is unknowable. Area/thickness stay exact; L/w must be dropped
+    // (the caller then falls back to the plan-oriented extents).
+    const seg = () => box(5, 0.04, 3.6);
+    const parts: GeoPart[] = [0, 1, 2, 3].map((i) => {
+      const p = seg();
+      for (let j = 0; j < p.pos.length; j += 3) p.pos[j] += i * 5.001;
+      return p;
+    });
+    const vol = parts.reduce((s, p) => s + partVolume(p), 0);
+    const surf = parts.reduce((s, p) => s + partArea(p), 0);
+    const m = plateMetrics(parts, vol, surf, parts.reduce((s, p) => s + partFootprintArea(p), 0))!;
+    expect(m.area).toBeCloseTo(72, 3); // 4 × 5 × 3.6
+    expect(m.thickness).toBeCloseTo(0.04, 6);
+    expect(m.length).toBeUndefined();
+    expect(m.width).toBeUndefined();
+    expect(m.perimeter).toBeUndefined();
+    // End-to-end: the class mapping falls back to the plan-oriented extents.
+    const q = computeForClass("IfcCourse", elementMetrics(srcOf({ 1: parts }), 1)!);
+    expect(q.values.Length).toBeCloseTo(20, 0); // PCA major (chord)
+    expect(q.values.Depth).toBeCloseTo(0.04, 6); // still the exact V/A thickness
+    expect(q.values.NetArea).toBeCloseTo(72, 3);
+  });
+
+  it("unequal fragmentation (70/30) is detected too — a huge 'opening' means unwelded", () => {
+    const a = box(14, 0.04, 3.6);
+    const b = box(6, 0.04, 3.6);
+    for (let j = 0; j < b.pos.length; j += 3) b.pos[j] += 14.001; // 1 mm joint gap
+    const vol = partVolume(a) + partVolume(b);
+    const surf = partArea(a) + partArea(b);
+    const m = plateMetrics([a, b], vol, surf, partFootprintArea(a) + partFootprintArea(b))!;
+    expect(m.area).toBeCloseTo(72, 3);
+    expect(m.thickness).toBeCloseTo(0.04, 6);
+    expect(m.length).toBeUndefined(); // not solvable — falls back to PCA dims
+  });
+
+  it("a feathered (tapered-rim) layer resolves its outline via the normal-sign split", () => {
+    // Thickness goes to zero at both ends: top and bottom share the rim
+    // vertices, so the parity boundary erases the outline (its only loops are
+    // zero-area slivers along the sides). The sign split must recover it.
+    const p = taperedPlate(20, 3.6, 0.4);
+    const m = plateMetrics([p], partVolume(p), partArea(p), partFootprintArea(p))!;
+    expect(m.length).toBeCloseTo(20, 0);
+    expect(m.width).toBeCloseTo(3.6, 1);
+    expect(m.perimeter).toBeCloseTo(2 * (20 + 3.6), 0);
+    // thickness = V/A = mean height of the sine profile: h·2/π
+    expect(m.thickness).toBeCloseTo(0.4 * (2 / Math.PI), 2);
+  });
+
   it("a chunky solid is NOT a plate (keeps the straight-axis dims)", () => {
     const c = box(2, 3, 4);
-    expect(plateMetrics([c], partVolume(c), partArea(c))).toBeNull();
+    expect(plateMetrics([c], partVolume(c), partArea(c), partFootprintArea(c))).toBeNull();
   });
 
   it("the fallback mapping uses plate dims for plate-like proxies", () => {
@@ -176,6 +329,11 @@ describe("plate metrics (curvature- and slope-proof top-face dims)", () => {
     const q = computeForClass("IfcBuildingElementProxy", m);
     expect(q.values.Length).toBeCloseTo(270, 0);
     expect(q.values.Height).toBeCloseTo(0.04, 3);
+    expect(q.values.NetArea).toBeCloseTo(270 * 27, -2); // single face, not the shell
+    // Chunky solids get no NetArea (only the shell's OuterSurfaceArea applies).
+    const cubeQ = computeForClass("IfcThing", elementMetrics(srcOf({ 1: [box(2, 3, 4)] }), 1)!);
+    expect(cubeQ.values.NetArea).toBeUndefined();
+    expect(cubeQ.values.OuterSurfaceArea).toBeCloseTo(52, 5);
   });
 
   it("IfcCourse maps to Qto_CourseBaseQuantities with arc dims", () => {

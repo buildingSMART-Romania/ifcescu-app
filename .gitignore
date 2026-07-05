@@ -7,3 +7,6 @@ dist-ssr
 
 # Reguli interne — nu se publică niciodată
 REGULI.md
+
+# Modele IFC locale de test din rădăcină (sample-urile publice stau în public/samples)
+/*.ifc

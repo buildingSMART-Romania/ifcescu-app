@@ -70,6 +70,18 @@ or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-ap
   (sum/avg/count/min/max), with row→3D selection and CSV export. A **bill-of-quantities**
   preset groups by class → material and sums the base quantities, and a **printable
   report** opens a styled page you can save as PDF.
+- **Quantity takeoff from geometry (experimental, off by default)** — enable it in Settings; a
+  calculator button in the Data table derives per-element quantities from the triangulated 3D
+  geometry (volume, areas, dimensions) under each IFC class's standard `Qto_*` names
+  (e.g. `Qto_WallBaseQuantities.NetVolume`, `Qto_CourseBaseQuantities` for road layers; unmapped
+  classes get a pattern-derived set) and **writes them onto the elements as Qto sets** — authored
+  values are never overwritten; download the IFC to keep them. Thin surface-like elements (road
+  courses, slabs, ramps) are measured on their **top face**, so lengths follow curvature and
+  thickness is not inflated by slope. All quantities display uniformly in **SI (m/m²/m³, 3
+  decimals)** with unit symbols; the file keeps its own declared units (values convert at the
+  read/write boundary). Values are approximations derived from the render mesh.
+- **Guided tour** — a step-by-step spotlight tour over the live UI (tree, toolbar tools,
+  IDS/BCF, data table, globe tab), launched any time from the Help (`?`) dialog.
 - **Analytics dashboard (Power BI-style, experimental, off by default)** — enable it in Settings; it opens a
   **resizable bottom dock** (the 3D stays visible above) with movable, resizable, grid-snapped visuals — bars,
   donut, treemap, stacked bars, histogram, line, area, ranked list, scatter/bubble, gauge with a target, KPI
@@ -100,7 +112,7 @@ or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-ap
   (Entity/Attribute/Property/Classification/Material/PartOf), exports a `.ids`, loads an
   existing one to edit, and validates directly against the model. The validation report
   exports as a **printable PDF** and a **CSV** (one row per failed requirement) — the
-  deliverables for audits and certification exams.
+  deliverables for audits and quality checks.
 - **BCF** — full topic collaboration: create topics from the current view, **add comments** (optionally
   with the current view attached), **edit status / type / priority / assignee / due date**, and **delete**
   topics; import/export `.bcfzip`; and **open a topic's viewpoint** (↗ 3D) to reproduce it in 3D — camera
@@ -118,7 +130,8 @@ or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-ap
   earth-transparency slider; a bundled **EGM2008** geoid grid provides the geoid
   undulation readout.
 - **Settings** — a gear-button dialog (saved to `localStorage`): **experimental
-  features** (gates the analytics module — off by default), **units & formatting**
+  features** (gate the analytics module and the geometry quantity takeoff — both off
+  by default), **units & formatting**
   (length m/cm/mm, area m²/ha, decimals), **3D viewer** (background, projection
   perspective/orthographic, navigation cube, view bar, default snapping), and
   **navigation** (orbit-pivot mode — manual / orbit-around-selection / auto-frame,
@@ -151,7 +164,7 @@ or bugs? [**Open an issue**](https://github.com/buildingSMART-Romania/ifcescu-ap
 
 ## Prerequisites
 
-- **Node.js** (LTS; CI builds on Node 20) and **npm**.
+- **Node.js** (LTS; CI builds on Node 24) and **npm**.
 - A **WebGPU-capable browser** for the 3D viewer — recent Chrome/Edge, or Safari 18+.
   (Editing, export, and the globe work without WebGPU.)
 - **No** Rust toolchain or `wasm-pack` — the `@ifc-lite` WASM core ships prebuilt via npm.
@@ -193,6 +206,14 @@ The suite lives in `tests/`:
   Always runs.
 - **`boqReport.test.ts`** — the bill-of-quantities preset builder (`boqPresetConfig`):
   groups by class → material and picks the present base quantities. Pure; always runs.
+- **`geoQuantities.test.ts`** — the geometry quantity calculator: mesh math on known
+  solids (volume/areas/footprint, winding robustness, multi-part sums), plan-oriented
+  dims under rotation, plate metrics on a synthetic curved+climbing road ribbon (arc
+  length, ribbon width, V/A thickness), the per-class `QTO_SCHEMA` mapping and the
+  async runner (abort, SI results). Pure; always runs.
+- **`unitScales.test.ts`** — the SI conversion boundary: per-measure scale resolution,
+  3-decimal rounding, and a full editor round-trip on an inline millimetre model
+  (SI in → file units in the STEP → SI back out with unit symbols). Always runs.
 - **`pivot.test.ts`** — the data-table aggregation engine (`buildPivot`): the five
   aggregators (sum / avg / count / min / max), `NO_VALUE` / missing-field handling
   (elements without a field don't corrupt sums or averages), the `distinctFieldValues`
@@ -252,12 +273,14 @@ src/
     ids.ts                 IDS validate + serialize (parse/validate/audit + serializeIds)
     idsWriter.ts           serialize an IDSDocument to buildingSMART IDS 1.0 XML
     idsCatalog.ts          authoring catalogs (IFC classes, psets, data types, from-model)
+    unitScales.ts          SI display/write conversion boundary (file units ↔ m/m²/m³)
   components/
     Header, UploadPanel, Viewer, IfcTree, PropsPanel, EditPanel, GlobeViewer,
     ModelsPanel, NavCube, ViewBar, BcfPanel, IdsPanel, DataTablePanel,
     DataTableConfig, Modal, HelpModal, SettingsModal, ErrorBoundary,
     IdsEditorModal (IDS creator), FilterPanel (filter & select),
-    AnalyticsPanel (charts dashboard — experimental), ClashPanel (clash detection)
+    AnalyticsPanel (charts dashboard — experimental), ClashPanel (clash detection),
+    tour/ (guided spotlight tour: steps + overlay)
   viewer/
     engine.ts              WebGPU engine wrapper (@ifc-lite/renderer): federated load,
                            pick/render, camera + nav-cube matrices, selection outline,
@@ -266,6 +289,8 @@ src/
     pivot.ts               data-table model: field discovery, aggregation, CSV export
     analytics.ts           analytics chart data + cross-filter logic (reuses pivot)
     clash.ts               clash detection: AABB broad phase + triangle-triangle narrow phase (pure)
+    geoQuantities.ts       quantity takeoff from geometry: mesh math, plate metrics,
+                           per-class Qto schema, async runner (experimental feature)
     boqReport.ts           bill-of-quantities preset + printable (PDF) HTML report
     measure.ts             measurement tool (length/point/area) + snap glyphs
     overlayColors.ts       theme-aware colors for the SVG overlays
