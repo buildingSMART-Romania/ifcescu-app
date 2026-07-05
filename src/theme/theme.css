@@ -3372,6 +3372,37 @@ table.summary td.k {
 .clash-dot.b { background: #ff991a; }
 .clash-table select { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 5px; font-size: 0.74rem; color: var(--text); cursor: pointer; }
 
+/* Edit panel: SI unit symbol next to quantity inputs. */
+.edit-unit {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 20px;
+}
+
+/* Data table: geometry-quantity compute progress + write confirmation. */
+.dt-geo-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dt-geo-progress .ids-progress {
+  flex: 1;
+}
+.dt-geo-msg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: rgba(var(--accent-rgb), 0.08);
+  border-bottom: 1px solid var(--border);
+}
+
 /* ---------- Onboarding: guided tour ---------- */
 
 .help-tour-btn {

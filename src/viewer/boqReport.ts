@@ -16,11 +16,15 @@ import { getLang, t } from "../i18n";
 // Base quantities to sum, in report order — only those present in the model are kept.
 const BOQ_QUANTITIES = ["NetVolume", "GrossVolume", "NetArea", "GrossArea", "Length", "Width", "Height", "Weight"];
 
-/** A standard BoQ pivot config: group by Class then Material, sum base quantities. */
+/** A standard BoQ pivot config: group by Class then Material, sum base quantities.
+ *  A base quantity absent as authored data falls back to its geometry-computed
+ *  column (if the user ran the calculator — see viewer/geoQuantities.ts). */
 export function boqPresetConfig(fields: FieldDef[]): PivotConfig {
   const values: ValueColumn[] = [];
   for (const name of BOQ_QUANTITIES) {
-    const f = fields.find((x) => x.source === "quantity" && x.name === name);
+    const f =
+      fields.find((x) => x.source === "quantity" && x.name === name) ??
+      fields.find((x) => x.source === "geoQuantity" && x.name === name);
     if (f) values.push({ fieldKey: f.key, agg: "sum" });
   }
   return { groupBy: ["class", "material"], values, showTotals: true };

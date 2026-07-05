@@ -50,6 +50,9 @@ export const ro = {
     badge: "experimental",
     analyticsLabel: "Modul Analiză",
     analyticsDesc: "Tablou de bord vizual (tip Power BI) cu vizuale mutabile și filtrare reflectată în 3D.",
+    geoQtoLabel: "Calcul de cantități din geometrie",
+    geoQtoDesc:
+      "Buton în Tabelul de date care derivă cantitățile (volum, arii, dimensiuni) din geometria 3D pentru elementele fără Qto și le scrie în model ca seturi Qto standard.",
     unitLength: "Unitate lungime",
     unitArea: "Unitate suprafață",
     decimals: "Zecimale",
@@ -145,6 +148,12 @@ export const ro = {
     colorOn: "Colorează elementele 3D după prima grupare",
     organize: "Organizare (grupări și coloane)",
     boqPresetTitle: "Preset antemăsurătoare (clasă → material, sume cantități)",
+    geoComputeTitle: "Calculează cantitățile din geometrie (volum, arii, dimensiuni) și scrie-le pe elemente ca seturi Qto — afișate uniform în m, m², m³; valorile autorate existente nu sunt atinse",
+    geoComputing: "Se calculează cantitățile din geometrie… {done}/{total} elemente",
+    geoStop: "Oprește",
+    geoDone: "Cantitățile au fost calculate — coloanele „(calculat)” sunt acum în tabel și în preset-ul de antemăsurătoare.",
+    geoDoneWritten:
+      "Cantitățile au fost calculate și {n} au fost scrise pe {e} elemente ca seturi Qto (valorile autorate existente nu au fost atinse). Descarcă IFC-ul pentru a le păstra.",
     reportTitle: "Raport printabil (PDF)",
     exportCsv: "Export CSV",
     empty: "Adăugați cel puțin un câmp de grupare din „⚙ Organizare”.",
@@ -269,6 +278,7 @@ export const ro = {
     classField: "Clasă IFC",
     material: "Material",
     noValue: "(fără valoare)",
+    computed: "calculat",
   },
   edit: {
     addOfficialProp: "Adaugă proprietate oficială",

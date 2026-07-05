@@ -10,6 +10,7 @@ import {
 } from "@ifc-lite/parser";
 import { entityType } from "./model";
 import { friendly } from "../components/IfcTree";
+import { scalesFor, siSymbol, toSI } from "../ifc/unitScales";
 import { t, type I18nKey } from "../i18n";
 
 export type AggKind = "sum" | "avg" | "count" | "min" | "max";
@@ -18,10 +19,13 @@ export type FieldKind = "categorical" | "numeric";
 export interface FieldDef {
   key: string;
   label: string;
-  source: "model" | "class" | "material" | "property" | "quantity";
+  source: "model" | "class" | "material" | "property" | "quantity" | "geoQuantity";
   pset?: string;
   name?: string;
   kind: FieldKind;
+  /** SI display unit for quantity fields ("m"/"m²"/"m³") — all quantity values
+   *  resolve in SI (see ifc/unitScales). */
+  unitSymbol?: string;
 }
 
 export interface ValueColumn {
@@ -104,6 +108,31 @@ export const aggLabel = (kind: AggKind): string => t(AGG_KEY[kind]);
 // quantity (NetVolume, Length, …) aggregate across all classes/materials.
 const propKey = (pset: string, name: string) => `prop:${pset}::${name}`;
 const qtyKey = (name: string) => `qty:${name}`;
+const geoKey = (name: string) => `geo:${name}`;
+
+// --- geometry-computed quantities (see viewer/geoQuantities.ts) ------------
+// Registered per store AFTER an explicit user-triggered computation; like
+// authored quantities they merge by NAME across classes. Values are in metres
+// (m/m²/m³) — separate columns from authored quantities, which are in the
+// file's project units.
+export interface GeoQtyEntry {
+  qset: string | null;
+  values: Record<string, number>;
+  kinds: Record<string, "length" | "area" | "volume">;
+}
+const geoQtyCache = new WeakMap<IfcDataStore, Map<number, GeoQtyEntry>>();
+
+/** Attach (or clear, with null) computed quantities for a store's LOCAL ids.
+ *  Drops the store's value cache so re-computations don't serve stale values. */
+export function setGeoQuantities(store: IfcDataStore, map: Map<number, GeoQtyEntry> | null): void {
+  if (map) geoQtyCache.set(store, map);
+  else geoQtyCache.delete(store);
+  valueCache.delete(store);
+}
+
+export function getGeoQuantities(store: IfcDataStore): Map<number, GeoQtyEntry> | null {
+  return geoQtyCache.get(store) ?? null;
+}
 
 function coerceNumeric(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -140,6 +169,29 @@ export function discoverFields(models: PivotModel[]): FieldDef[] {
       const ex = byKey.get(f.key);
       if (!ex) byKey.set(f.key, { ...f });
       else if (f.kind === "numeric") ex.kind = "numeric"; // numeric wins across stores
+    }
+    // Geometry-computed quantities (if the user ran the calculator). Added here,
+    // not in the cached per-store discovery: the map appears/changes at runtime
+    // and the label carries a localised "(computed)" marker.
+    const geo = geoQtyCache.get(m.store);
+    if (geo) {
+      const GEO_SYMBOL = { length: "m", area: "m²", volume: "m³" } as const;
+      for (const entry of geo.values()) {
+        for (const name of Object.keys(entry.values)) {
+          const key = geoKey(name);
+          if (!byKey.has(key)) {
+            const sym = GEO_SYMBOL[entry.kinds[name]];
+            byKey.set(key, {
+              key,
+              label: `${name} (${t("pivot.computed")}, ${sym})`,
+              source: "geoQuantity",
+              name,
+              kind: "numeric",
+              unitSymbol: sym,
+            });
+          }
+        }
+      }
     }
   }
   return [...byKey.values()].sort(fieldSort);
@@ -180,8 +232,18 @@ function discoverFieldsForStore(store: IfcDataStore, allIDs: number[]): FieldDef
         const key = qtyKey(q.name);
         if (seen.has(key)) continue;
         seen.add(key);
-        // Merged across all Qto_ sets (see qtyKey note) — label is just the name.
-        fields.push({ key, label: q.name, source: "quantity", name: q.name, kind: "numeric" });
+        // Merged across all Qto_ sets (see qtyKey note) — label = name + the SI
+        // unit the values display in (symbols aren't language-dependent, so
+        // caching the label per store is fine).
+        const sym = siSymbol(q.type) ?? undefined;
+        fields.push({
+          key,
+          label: sym ? `${q.name} (${sym})` : q.name,
+          source: "quantity",
+          name: q.name,
+          kind: "numeric",
+          unitSymbol: sym,
+        });
       }
     }
   }
@@ -206,7 +268,10 @@ export function fieldByKey(fields: FieldDef[], key: string): FieldDef | undefine
 
 export function valueColumnLabel(fields: FieldDef[], col: ValueColumn): string {
   const f = fieldByKey(fields, col.fieldKey);
-  return `${aggLabel(col.agg)}: ${f?.name ?? f?.label ?? col.fieldKey}`;
+  // Quantity columns (authored + computed) keep their full label — it carries
+  // the SI unit and the "(computed)" marker.
+  const name = f?.source === "quantity" || f?.source === "geoQuantity" ? f.label : f?.name ?? f?.label ?? col.fieldKey;
+  return `${aggLabel(col.agg)}: ${name}`;
 }
 
 // --- per-element value resolution (memoised per store) --------------------
@@ -262,13 +327,18 @@ export function getFieldValue(store: IfcDataStore, id: number, field: FieldDef):
     }
     case "quantity": {
       // Match by name across every Qto_ set (merged field — see discoverFields).
+      // Values convert to SI so authored and computed columns are comparable.
       for (const set of extractQuantitiesOnDemand(store, id)) {
         const q = set.quantities.find((x) => x.name === field.name);
         if (q) {
-          val = typeof q.value === "number" && Number.isFinite(q.value) ? q.value : null;
+          val = typeof q.value === "number" && Number.isFinite(q.value) ? toSI(q.value, q.type, scalesFor(store)) : null;
           break;
         }
       }
+      break;
+    }
+    case "geoQuantity": {
+      val = geoQtyCache.get(store)?.get(id)?.values[field.name!] ?? null;
       break;
     }
   }

@@ -45,6 +45,9 @@ export const en: Dict = {
     experimentalNote: "Work-in-progress modules; enable at your own risk.",
     badge: "experimental",
     analyticsLabel: "Analytics module",
+    geoQtoLabel: "Quantity takeoff from geometry",
+    geoQtoDesc:
+      "A Data-table button that derives quantities (volume, areas, dimensions) from the 3D geometry for elements without Qto and writes them into the model as standard Qto sets.",
     analyticsDesc: "Visual dashboard (Power BI-like) with movable visuals and filtering reflected in 3D.",
     unitLength: "Length unit",
     unitArea: "Area unit",
@@ -141,6 +144,12 @@ export const en: Dict = {
     colorOn: "Color 3D elements by the first grouping",
     organize: "Organize (groupings and columns)",
     boqPresetTitle: "Bill of quantities preset (class → material, quantity sums)",
+    geoComputeTitle: "Compute quantities from geometry (volume, areas, dimensions) and write them onto the elements as Qto sets — displayed uniformly in m, m², m³; existing authored values are never touched",
+    geoComputing: "Computing quantities from geometry… {done}/{total} elements",
+    geoStop: "Stop",
+    geoDone: "Quantities computed — the \"(computed)\" columns are now in the table and in the bill-of-quantities preset.",
+    geoDoneWritten:
+      "Quantities computed and {n} written onto {e} elements as Qto sets (existing authored values were not touched). Download the IFC to keep them.",
     reportTitle: "Printable report (PDF)",
     exportCsv: "Export CSV",
     empty: "Add at least one grouping field from „⚙ Organize”.",
@@ -265,6 +274,7 @@ export const en: Dict = {
     classField: "IFC class",
     material: "Material",
     noValue: "(no value)",
+    computed: "computed",
   },
   edit: {
     addOfficialProp: "Add official property",

@@ -86,6 +86,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           desc={t("settings.analyticsDesc")}
           badge={t("settings.badge")}
         />
+        <Toggle
+          checked={s.experimental.geoQto}
+          onChange={(v) => update({ experimental: { geoQto: v } })}
+          label={t("settings.geoQtoLabel")}
+          desc={t("settings.geoQtoDesc")}
+          badge={t("settings.badge")}
+        />
       </section>
       )}
 

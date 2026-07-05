@@ -12,8 +12,9 @@ export type Projection = "perspective" | "orthographic";
 export type PivotMode = "manual" | "selection" | "autoFrame";
 
 export interface Settings {
-  /** Experimental modules, off by default. Gates the Analytics module. */
-  experimental: { analytics: boolean };
+  /** Experimental modules, off by default. Gates the Analytics module and the
+   *  geometry quantity calculator (Qto) in the data table. */
+  experimental: { analytics: boolean; geoQto: boolean };
   units: { length: LengthUnit; area: AreaUnit; decimals: number };
   viewer: {
     /** Hex override for the 3D background; null = use the theme default. */
@@ -37,7 +38,7 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
-  experimental: { analytics: false },
+  experimental: { analytics: false, geoQto: false },
   units: { length: "m", area: "m2", decimals: 3 },
   viewer: {
     background: null,

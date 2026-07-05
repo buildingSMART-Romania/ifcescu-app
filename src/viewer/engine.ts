@@ -239,6 +239,15 @@ export class ViewerEngine {
     return out;
   }
 
+  /** The retained world-space (Y-up) mesh parts of one element, indexed —
+   *  one entry per MeshData batch (material/CSG part). Used by the geometry
+   *  quantity calculator, which needs per-part volumes (winding can flip
+   *  between parts). Treat as read-only. */
+  elementGeometryParts(id: number): { pos: Float32Array; idx: Uint32Array }[] | null {
+    const list = this.geom.get(id);
+    return list && list.length ? list : null;
+  }
+
   /** Map a global id back to its owning model + local expressId + store. */
   resolveGlobal(globalId: number): { modelId: string; store: IfcDataStore; localId: number } | null {
     const r = this.fed.fromGlobalId(globalId);

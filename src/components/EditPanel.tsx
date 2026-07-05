@@ -21,6 +21,8 @@ interface Row {
   value: string;
   propType?: PropertyValueType;
   qtyType?: QuantityType;
+  /** SI display unit for quantity rows ("m"/"m²"/"m³") — values are edited in SI. */
+  unit?: string;
   readonly?: boolean;
   isEnum?: boolean;
   orig: string;
@@ -269,6 +271,7 @@ export function EditPanel({ editor, id, detail, schema, onSaved, onCancel }: Pro
                   onChange={(e) => setRow(gi, ri, { value: e.target.value })}
                 />
               )}
+              {g.kind === "quantity" && r.unit && <span className="edit-unit">{r.unit}</span>}
               {g.kind === "pset" && !r.deleted && !g.deleted && (
                 <select
                   className="edit-type"

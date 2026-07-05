@@ -16,6 +16,7 @@ import { PropertyValueType, QuantityType } from "@ifc-lite/data";
 import { MutablePropertyView, BulkQueryEngine } from "@ifc-lite/mutations";
 import { StepExporter } from "@ifc-lite/export";
 import { parseStore, detectSchema, type IfcSchema } from "./store";
+import { fromSI, scalesFor, siSymbol, toSI } from "./unitScales";
 
 // Query types for the Filter feature (BulkQueryEngine.select).
 export type { SelectionCriteria, FilterOperator } from "@ifc-lite/mutations";
@@ -203,10 +204,19 @@ export class IfcEditor {
         .map((p) => ({ name: p.name, value: str(p.value), propType: p.type, unit: p.unit, edited: psetNew || editedKeys.has(`${set.name}::${p.name}`) }));
       groups.push({ kind: "pset", name: set.name || "PropertySet", rows });
     }
+    // Quantities display in SI (m/m²/m³) app-wide; the file keeps its own
+    // declared units — toSI here + fromSI in setQuantity are the boundary.
+    const scales = scalesFor(this.store);
     for (const set of this.view.getQuantitiesForEntity(id)) {
       const rows: EditRow[] = set.quantities
         .filter((q) => q.name)
-        .map((q) => ({ name: q.name, value: str(q.value), qtyType: q.type, unit: q.unit, edited: editedKeys.has(`${set.name}::${q.name}`) }));
+        .map((q) => ({
+          name: q.name,
+          value: typeof q.value === "number" ? str(toSI(q.value, q.type, scales)) : str(q.value),
+          qtyType: q.type,
+          unit: siSymbol(q.type) ?? q.unit,
+          edited: editedKeys.has(`${set.name}::${q.name}`),
+        }));
       groups.push({ kind: "quantity", name: set.name || "Qto", rows });
     }
 
@@ -235,8 +245,10 @@ export class IfcEditor {
       properties.map((p) => ({ name: p.name, value: p.value, type: p.type ?? PropertyValueType.Text })),
     );
   }
+  /** `value` is in SI (m/m²/m³) — the app's display convention; it converts to
+   *  the file's declared units here so the export stays unit-correct. */
   setQuantity(id: number, qset: string, name: string, value: number, qType: QuantityType = QuantityType.Length): void {
-    this.view.setQuantity(id, qset, name, value, qType);
+    this.view.setQuantity(id, qset, name, fromSI(value, qType, scalesFor(this.store)), qType);
   }
   /** Delete one property from a pset (overlay tombstone; applies at export). */
   removeProperty(id: number, pset: string, prop: string): void {

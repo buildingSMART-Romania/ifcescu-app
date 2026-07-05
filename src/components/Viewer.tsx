@@ -313,10 +313,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const expandAllTree = () => setExpandedByView((m) => ({ ...m, [treeView]: collectAllIds(activeRoots ?? []) }));
 
   // Pivot input: all loaded models' stores (memoized on the loaded-set version).
+  // geoVersion bumps when geometry-computed quantities are (re)registered so the
+  // downstream pivot memos re-discover the new columns.
+  const [geoVersion, setGeoVersion] = useState(0);
   const pivotModels = useMemo<PivotModel[]>(
     () => [...modelStoresRef.current.entries()].map(([id, r]) => ({ id, fileName: r.fileName, store: r.store, localIDs: r.localIDs, offset: r.offset })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [modelsVersion],
+    [modelsVersion, geoVersion],
   );
 
   // Auto-fit the tree panel width to the longest visible label (grow-only, capped),
@@ -1513,6 +1516,10 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             onSelectRows={(ids) => selectIds(ids)}
             onColorByGroup={setGroupColorMap}
             onClose={() => setBottomDock("none")}
+            engine={settings.experimental.geoQto ? engineRef.current : null}
+            editor={editor}
+            onGeoComputed={() => setGeoVersion((v) => v + 1)}
+            onQtoWritten={() => onChangeCount(editor.changeCount())}
           />
           </Suspense>
         )}
@@ -1654,7 +1661,12 @@ function detailToPropGroups(detail: SelectionDetail): PropGroup[] {
     name: g.kind === "attribute" ? t("viewer.attrGroup") : g.name,
     rows: g.rows
       .filter((r) => r.value.length)
-      .map((r) => ({ k: g.kind === "attribute" ? attrLabel(r.name) : r.name, v: r.value, edited: r.edited })),
+      .map((r) => ({
+        k: g.kind === "attribute" ? attrLabel(r.name) : r.name,
+        // Quantities show their SI display unit ("3.6 m") — see ifc/unitScales.
+        v: g.kind === "quantity" && r.unit ? `${r.value} ${r.unit}` : r.value,
+        edited: r.edited,
+      })),
   })).filter((g) => g.rows.length);
 }
 
