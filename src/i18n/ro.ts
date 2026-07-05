@@ -610,7 +610,7 @@ export const ro = {
       "• Butonul Filtru deschide un constructor de reguli: tip IFC (una din mai multe clase), proprietate (set + nume + operator + valoare) sau nume (conține / egal / regex).\n• Combinați regulile cu ȘI / SAU.\n• Apăsați Selectează sau Izolează — elementele potrivite se selectează / izolează în 3D.",
     idsBcfTitle: "IDS & BCF",
     idsBcfBody:
-      "• IDS: încărcați o specificație .ids pentru a verifica modelul; vedeți conform/neconform pe specificație; creați topicuri BCF din neconformități.\n• Exportați raportul de validare ca PDF printabil (butonul de imprimare) sau CSV (un rând per cerință neconformă) — livrabilele pentru audituri și examene de certificare.\n• Creator IDS (✎ în panoul IDS): construiți specificații IDS în aplicație (fațete Entity/Attribute/Property/Classification/Material/PartOf), exportați .ids și validați direct pe model.\n• BCF: creați un topic din vederea curentă (cameră + selecție + captură); importați/exportați .bcfzip. Topicurile generate din neconformitățile IDS sau din coliziuni primesc un viewpoint per element, deci fiecare issue se deschide exact pe elementul lui în tool-urile BCF; bifați „Atașează capturi ale vederilor” înainte de export pentru a include și un thumbnail per topic (capturat în fundal — vederea 3D nu e deranjată).\n• ↗ 3D pe un topic îi reconstituie vederea în 3D: cameră + izolare + colorare + selecție (la fel pentru topicurile generate din IDS sau din Coliziuni).\n• Click pe un topic îl extinde: schimbă status / tip / prioritate / responsabil / termen, adaugă comentarii (opțional cu vederea curentă atașată) sau șterge topicul. Totul intră în exportul .bcfzip.\n• Butonul „Resetează vederea” din bara panoului readuce modelul la starea neutră (vizibilitate completă, fără izolare/colorare/selecție, inclusiv overlay-ul IDS).",
+      "• IDS: încărcați o specificație .ids pentru a verifica modelul; vedeți conform/neconform pe specificație; creați topicuri BCF din neconformități.\n• Exportați raportul de validare ca PDF printabil (butonul de imprimare) sau CSV (un rând per cerință neconformă) — livrabilele pentru audituri și verificări de calitate.\n• Creator IDS (✎ în panoul IDS): construiți specificații IDS în aplicație (fațete Entity/Attribute/Property/Classification/Material/PartOf), exportați .ids și validați direct pe model.\n• BCF: creați un topic din vederea curentă (cameră + selecție + captură); importați/exportați .bcfzip. Topicurile generate din neconformitățile IDS sau din coliziuni primesc un viewpoint per element, deci fiecare issue se deschide exact pe elementul lui în tool-urile BCF; bifați „Atașează capturi ale vederilor” înainte de export pentru a include și un thumbnail per topic (capturat în fundal — vederea 3D nu e deranjată).\n• ↗ 3D pe un topic îi reconstituie vederea în 3D: cameră + izolare + colorare + selecție (la fel pentru topicurile generate din IDS sau din Coliziuni).\n• Click pe un topic îl extinde: schimbă status / tip / prioritate / responsabil / termen, adaugă comentarii (opțional cu vederea curentă atașată) sau șterge topicul. Totul intră în exportul .bcfzip.\n• Butonul „Resetează vederea” din bara panoului readuce modelul la starea neutră (vizibilitate completă, fără izolare/colorare/selecție, inclusiv overlay-ul IDS).",
     globeTitle: "Glob 3D",
     globeBody:
       "• Plasează modelul pe glob dacă are georeferențiere (IfcMapConversion) sau coordonate reale Stereo 70.\n• Hărți Stradă/Satelit, teren și un cursor de transparență a globului.\n• Readout: Est/Nord, cotă, lon/lat, ondulație geoid, înălțime elipsoidală.",
@@ -645,5 +645,45 @@ export const ro = {
       escape: "Anulează comanda activă",
       del: "Șterge măsurătoarea selectată",
     },
+  },
+  tour: {
+    helpButton: "Pornește turul ghidat",
+    stepCount: "Pasul {n} din {total}",
+    back: "Înapoi",
+    next: "Înainte",
+    done: "Gata",
+    treeTitle: "Modele și structură",
+    treeBody:
+      "Aici gestionezi modelele federate și navighezi structura IFC — spațial, pe clase sau pe materiale. Click pe un element îl selectează în 3D; ochiul îi comută vizibilitatea.",
+    canvasTitle: "Scena 3D",
+    canvasBody:
+      "Rotește, panoramează și apropie modelul cu mouse-ul. Selectează un element ca să-i vezi proprietățile; cubul de navigație și bara de vederi te duc rapid la vederile standard.",
+    measureTitle: "Măsurare",
+    measureBody: "Distanțe, puncte și suprafețe, cu snap la vârfuri, mijloace, muchii și fețe. Scurtătură: M.",
+    sectionTitle: "Secțiuni",
+    sectionBody:
+      "Activează planul de secțiune și dă dublu-click pe o față pentru a tăia modelul; poziția și dimensiunea se reglează de aici. Scurtătură: S.",
+    visibilityTitle: "Vizibilitate",
+    visibilityBody: "Ascunde, izolează sau încadrează selecția și readu totul la vedere. Scurtături: H, L, C, A.",
+    viewsTitle: "Vederi",
+    viewsBody: "Vederi standard (tastele 1–6), încadrare totală (Z) și viewpoint-uri salvate, la care poți reveni oricând.",
+    filterTitle: "Filtrare",
+    filterBody:
+      "Construiește reguli pe clase, proprietăți sau materiale și aplică rezultatul: selectează, izolează, ascunde sau colorează elementele găsite.",
+    idsTitle: "Validare IDS",
+    idsBody:
+      "Încarcă sau creează o specificație IDS, validează modelul și exportă raportul — fluxul complet de verificare a calității datelor.",
+    bcfTitle: "Colaborare BCF",
+    bcfBody:
+      "Creează topic-uri BCF cu viewpoint-uri și snapshot-uri și exportă-le ca fișier BCF pentru colegii de proiect.",
+    tableTitle: "Tabel de date și cantități",
+    tableBody: "Pivotează proprietățile modelului într-un tabel, agregă valori și exportă extrasul de cantități (BoQ).",
+    clashTitle: "Coliziuni",
+    clashBody: "Rulează detecția de coliziuni între modelele încărcate, parcurge rezultatele și trimite-le în BCF.",
+    globeTitle: "Glob 3D",
+    globeBody: "Modelele georeferențiate (ex. Stereo 70) pot fi așezate pe globul 3D, pe imagini satelitare și teren real.",
+    helpTitle: "Ajutor și scurtături",
+    helpBody:
+      "Ghidul complet și toate scurtăturile de tastatură stau aici — se deschide și cu tasta ?. Tot de aici poți relua oricând acest tur.",
   },
 };

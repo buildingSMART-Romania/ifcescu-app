@@ -112,7 +112,7 @@ const sectionCtlStyle: CSSProperties = {
 };
 
 /** Grouped toolbar dropdown (closes on click-outside / Escape). */
-function Dropdown({ label, icon, active, children }: { label: string; icon: ReactNode; active?: boolean; children: ReactNode }) {
+function Dropdown({ label, icon, active, children, dataTour }: { label: string; icon: ReactNode; active?: boolean; children: ReactNode; dataTour?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -127,7 +127,7 @@ function Dropdown({ label, icon, active, children }: { label: string; icon: Reac
     };
   }, [open]);
   return (
-    <div className="vgroup" ref={ref}>
+    <div className="vgroup" ref={ref} data-tour={dataTour}>
       <button className={"vbtn" + (active ? " active" : "")} onClick={() => setOpen((o) => !o)}>
         <span className="ic">{icon}</span>
         <span>{label}</span>
@@ -1219,7 +1219,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
   return (
     <div className="viewer-wrap">
-      <aside className="ifctree-panel" style={{ width: treeWidth }}>
+      <aside className="ifctree-panel" style={{ width: treeWidth }} data-tour="tree">
         <ModelsPanel
           models={modelList}
           busy={busyAdd}
@@ -1256,7 +1256,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
       <div className="viewer-main" ref={mainRef}>
         <div className="vtoolbar">
-          <Dropdown label={t("viewer.measure")} icon={<ToolIcon kind="measure" />} active={measureMode !== "none"}>
+          <Dropdown label={t("viewer.measure")} icon={<ToolIcon kind="measure" />} active={measureMode !== "none"} dataTour="measure">
             <button className={"vmenu-item" + (measureMode === "length" ? " active" : "")} onClick={() => chooseMeasure("length")}><span className="ic"><ToolIcon kind="distance" /></span> {t("viewer.measureLength")}</button>
             <button className={"vmenu-item" + (measureMode === "point" ? " active" : "")} onClick={() => chooseMeasure("point")}><span className="ic"><ToolIcon kind="point" /></span> {t("viewer.measurePoint")}</button>
             <button className={"vmenu-item" + (measureMode === "area" ? " active" : "")} onClick={() => chooseMeasure("area")}><span className="ic"><UiIcon kind="area" /></span> {t("viewer.measureArea")}</button>
@@ -1275,7 +1275,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <Dropdown label={t("viewer.section")} icon={<ToolIcon kind="section" />} active={section}>
+          <Dropdown label={t("viewer.section")} icon={<ToolIcon kind="section" />} active={section} dataTour="sectionTool">
             <button className={"vmenu-item" + (section ? " active" : "")} onClick={toggleSection}>
               <span className="ic"><ToolIcon kind="section" /></span><span>{t("viewer.sectionPlane")}</span><span className="vmenu-key">S</span>
             </button>
@@ -1285,7 +1285,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <Dropdown label={t("viewer.visibility")} icon={<UiIcon kind="eye" />}>
+          <Dropdown label={t("viewer.visibility")} icon={<UiIcon kind="eye" />} dataTour="visibility">
             <button className="vmenu-item" onClick={() => hideIds(selArr())}>
               <span className="ic"><VisIcon kind="hide" /></span><span>{t("viewer.hideSel")}</span><span className="vmenu-key">H</span>
             </button>
@@ -1301,7 +1301,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <Dropdown label={t("viewer.views")} icon={<ToolIcon kind="views" />}>
+          <Dropdown label={t("viewer.views")} icon={<ToolIcon kind="views" />} dataTour="views">
             <button className="vmenu-item" onClick={() => engineRef.current?.setPresetView("top")}>
               <span className="ic"><ViewIcon kind="up" /></span><span>{t("viewer.viewTop")}</span><span className="vmenu-key">1</span>
             </button>
@@ -1342,22 +1342,22 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <button className={"vbtn" + (bottomDock === "filter" ? " active" : "")} onClick={() => toggleBottom("filter")} title={t("filter.title")}>
+          <button className={"vbtn" + (bottomDock === "filter" ? " active" : "")} onClick={() => toggleBottom("filter")} title={t("filter.title")} data-tour="filter">
             <span className="ic"><ToolIcon kind="filter" /></span>
             <span>{t("filter.tab")}</span>
           </button>
 
-          <button className={"vbtn" + (dock === "ids" ? " active" : "")} onClick={() => setDock((d) => (d === "ids" ? "none" : "ids"))}>
+          <button className={"vbtn" + (dock === "ids" ? " active" : "")} onClick={() => setDock((d) => (d === "ids" ? "none" : "ids"))} data-tour="ids">
             <span className="ic"><ToolIcon kind="ids" /></span>
             <span>IDS</span>
           </button>
 
-          <button className={"vbtn" + (dock === "bcf" ? " active" : "")} onClick={() => setDock((d) => (d === "bcf" ? "none" : "bcf"))}>
+          <button className={"vbtn" + (dock === "bcf" ? " active" : "")} onClick={() => setDock((d) => (d === "bcf" ? "none" : "bcf"))} data-tour="bcf">
             <span className="ic"><ToolIcon kind="bcf" /></span>
             <span>BCF</span>
           </button>
 
-          <button className={"vbtn" + (bottomDock === "table" ? " active" : "")} onClick={() => toggleBottom("table")}>
+          <button className={"vbtn" + (bottomDock === "table" ? " active" : "")} onClick={() => toggleBottom("table")} data-tour="table">
             <span className="ic"><ToolIcon kind="table" /></span>
             <span>{t("dataTable.tab")}</span>
           </button>
@@ -1370,7 +1370,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           )}
 
 
-          <button className={"vbtn" + (bottomDock === "clash" ? " active" : "")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")}>
+          <button className={"vbtn" + (bottomDock === "clash" ? " active" : "")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")} data-tour="clash">
             <span className="ic"><ToolIcon kind="clash" /></span>
             <span>{t("clash.tab")}</span>
           </button>
@@ -1383,7 +1383,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           </button>
         </div>
 
-        <div className="viewer-host" ref={hostRef} style={{ position: "relative" }}>
+        <div className="viewer-host" ref={hostRef} style={{ position: "relative" }} data-tour="canvas">
           <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
           {captureProgress && (
             <div className="viewer-capture-cover">

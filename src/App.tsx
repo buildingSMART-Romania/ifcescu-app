@@ -10,6 +10,7 @@ import { Viewer } from "./components/Viewer";
 import { HelpModal } from "./components/HelpModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { TourOverlay } from "./components/tour/TourOverlay";
 import type { IDSValidationReport } from "./ifc/ids";
 import type { BCFProject } from "./ifc/bcf";
 
@@ -58,6 +59,8 @@ export default function App() {
   const [globeOpened, setGlobeOpened] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // The guided tour is launched from the Help modal only.
+  const [tourActive, setTourActive] = useState(false);
   // Number of edits made to the primary IFC (drives the top-bar download button).
   const [changeCount, setChangeCount] = useState(0);
   // Favorited property names for the 3D viewer's property panel. Owned here so a
@@ -207,6 +210,19 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // The tour anchors on the 3D view's chrome — drop it if the model goes away.
+  useEffect(() => {
+    if (!loaded) setTourActive(false);
+  }, [loaded]);
+
+  const endTour = () => setTourActive(false);
+  // From Help: start the tour over the live UI (only offered with a model up).
+  const startTourFromHelp = () => {
+    setShowHelp(false);
+    setTab("view");
+    setTourActive(true);
+  };
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -219,6 +235,7 @@ export default function App() {
             </button>
             <button
               className={"tab" + (tab === "globe" ? " active" : "")}
+              data-tour="globeTab"
               onClick={() => { setTab("globe"); setGlobeOpened(true); }}
               disabled={globeMode === "none"}
               title={globeMode === "none" ? t("app.globeDisabledTitle") : t("app.tabGlobe")}
@@ -237,7 +254,7 @@ export default function App() {
             </button>
           )}
           {loaded && <UploadPanel onFile={onFile} variant="button" />}
-          <button className="help-toggle" onClick={() => setShowHelp(true)} title={t("help.buttonTitle")} aria-label={t("help.buttonTitle")}>
+          <button className="help-toggle" data-tour="help" onClick={() => setShowHelp(true)} title={t("help.buttonTitle")} aria-label={t("help.buttonTitle")}>
             ?
           </button>
           <button className="settings-toggle" onClick={() => setShowSettings(true)} title={t("settings.buttonTitle")} aria-label={t("settings.buttonTitle")}>
@@ -334,8 +351,9 @@ export default function App() {
         )}
       </main>
 
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} onStartTour={loaded ? startTourFromHelp : undefined} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {tourActive && loaded && <TourOverlay onClose={endTour} />}
     </div>
   );
 }

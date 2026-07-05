@@ -606,7 +606,7 @@ export const en: Dict = {
       "• The Filter button opens a rule builder: IFC type (one of several classes), property (set + name + operator + value), or name (contains / equals / regex).\n• Combine rules with AND / OR.\n• Press Select or Isolate — the matching elements are selected / isolated in 3D.",
     idsBcfTitle: "IDS & BCF",
     idsBcfBody:
-      "• IDS: upload an .ids specification to check the model; see pass/fail per specification; create BCF topics from failures.\n• Export the validation report as a printable PDF (print button) or CSV (one row per failed requirement) — the deliverables for audits and certification exams.\n• IDS creator (✎ in the IDS panel): author IDS specifications in-app (Entity/Attribute/Property/Classification/Material/PartOf facets), export .ids, and validate against the model.\n• BCF: create a topic from the current view (camera + selection + snapshot); import/export .bcfzip. Topics generated from IDS failures or clashes get a per-element viewpoint so each issue opens onto its element in BCF tools; tick \"Attach view snapshots\" before exporting to also embed a thumbnail per topic (captured in the background — the 3D view isn't disturbed).\n• ↗ 3D on a topic reproduces its view in 3D: camera + isolation + coloring + selection (same for topics generated from IDS or Clashes).\n• Click a topic to expand it: change status / type / priority / assignee / due date, add comments (optionally with the current view attached) or delete the topic. Everything is written into the exported .bcfzip.\n• The \"Reset the view\" button in the panel bar returns the model to a neutral state (full visibility, no isolation/coloring/selection, including the IDS overlay).",
+      "• IDS: upload an .ids specification to check the model; see pass/fail per specification; create BCF topics from failures.\n• Export the validation report as a printable PDF (print button) or CSV (one row per failed requirement) — the deliverables for audits and quality checks.\n• IDS creator (✎ in the IDS panel): author IDS specifications in-app (Entity/Attribute/Property/Classification/Material/PartOf facets), export .ids, and validate against the model.\n• BCF: create a topic from the current view (camera + selection + snapshot); import/export .bcfzip. Topics generated from IDS failures or clashes get a per-element viewpoint so each issue opens onto its element in BCF tools; tick \"Attach view snapshots\" before exporting to also embed a thumbnail per topic (captured in the background — the 3D view isn't disturbed).\n• ↗ 3D on a topic reproduces its view in 3D: camera + isolation + coloring + selection (same for topics generated from IDS or Clashes).\n• Click a topic to expand it: change status / type / priority / assignee / due date, add comments (optionally with the current view attached) or delete the topic. Everything is written into the exported .bcfzip.\n• The \"Reset the view\" button in the panel bar returns the model to a neutral state (full visibility, no isolation/coloring/selection, including the IDS overlay).",
     globeTitle: "3D globe",
     globeBody:
       "• Places the model on the globe if it has georeferencing (IfcMapConversion) or real Stereo 70 coordinates.\n• Street/Satellite basemaps, terrain, and an earth-transparency slider.\n• Readout: East/North, elevation, lon/lat, geoid undulation, ellipsoidal height.",
@@ -641,5 +641,45 @@ export const en: Dict = {
       escape: "Cancel the active command",
       del: "Delete the selected measurement",
     },
+  },
+  tour: {
+    helpButton: "Start the guided tour",
+    stepCount: "Step {n} of {total}",
+    back: "Back",
+    next: "Next",
+    done: "Done",
+    treeTitle: "Models and structure",
+    treeBody:
+      "Manage federated models here and navigate the IFC structure — spatially, by class or by material. Clicking an element selects it in 3D; the eye toggles its visibility.",
+    canvasTitle: "The 3D scene",
+    canvasBody:
+      "Orbit, pan and zoom the model with the mouse. Select an element to see its properties; the navigation cube and the view bar take you straight to the standard views.",
+    measureTitle: "Measuring",
+    measureBody: "Distances, points and areas, with snapping to vertices, midpoints, edges and faces. Shortcut: M.",
+    sectionTitle: "Sections",
+    sectionBody:
+      "Enable the section plane and double-click a face to cut the model; position and size are adjusted from here. Shortcut: S.",
+    visibilityTitle: "Visibility",
+    visibilityBody: "Hide, isolate or frame the selection and bring everything back. Shortcuts: H, L, C, A.",
+    viewsTitle: "Views",
+    viewsBody: "Standard views (keys 1–6), fit all (Z) and saved viewpoints you can return to any time.",
+    filterTitle: "Filtering",
+    filterBody:
+      "Build rules on classes, properties or materials and apply the result: select, isolate, hide or color the matching elements.",
+    idsTitle: "IDS validation",
+    idsBody:
+      "Load or author an IDS specification, validate the model and export the report — the complete data-quality checking workflow.",
+    bcfTitle: "BCF collaboration",
+    bcfBody:
+      "Create BCF topics with viewpoints and snapshots and export them as a BCF file for your project colleagues.",
+    tableTitle: "Data table and quantities",
+    tableBody: "Pivot the model's properties into a table, aggregate values and export the bill of quantities (BoQ).",
+    clashTitle: "Clashes",
+    clashBody: "Run clash detection across the loaded models, walk through the results and push them into BCF.",
+    globeTitle: "3D globe",
+    globeBody: "Georeferenced models (e.g. Stereo 70) can be placed on the 3D globe, over satellite imagery and real terrain.",
+    helpTitle: "Help and shortcuts",
+    helpBody:
+      "The full guide and every keyboard shortcut live here — it also opens with the ? key. You can restart this tour from here any time.",
   },
 };

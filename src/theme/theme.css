@@ -3371,3 +3371,67 @@ table.summary td.k {
 .clash-dot.a { background: #db2626; }
 .clash-dot.b { background: #ff991a; }
 .clash-table select { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 5px; font-size: 0.74rem; color: var(--text); cursor: pointer; }
+
+/* ---------- Onboarding: guided tour ---------- */
+
+.help-tour-btn {
+  margin-bottom: 14px;
+}
+
+/* Guided tour: dimmed backdrop with a cut-out spotlight + explaining card. */
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100; /* above the app chrome, below nothing else while touring */
+}
+.tour-backdrop {
+  position: absolute;
+  inset: 0;
+  /* transparent — the dimming is the spotlight's giant box-shadow */
+}
+.tour-spot {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  outline: 2px solid var(--accent);
+  pointer-events: none;
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot {
+    transition: none;
+  }
+}
+.tour-card {
+  position: fixed;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: 12px 14px;
+}
+.tour-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tour-count {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.tour-card-title {
+  font-weight: 700;
+  margin: 4px 0 6px;
+}
+.tour-card-body {
+  font-size: 0.87rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.tour-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+

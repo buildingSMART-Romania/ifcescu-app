@@ -5,6 +5,9 @@ import type { I18nKey } from "../i18n";
 
 interface Props {
   onClose: () => void;
+  /** Closes the modal and starts the guided tour. Absent while no model is
+   *  loaded (the tour anchors on the viewer's chrome). */
+  onStartTour?: () => void;
 }
 
 /** Collapsible guide sections. `open` seeds the first one expanded. */
@@ -51,7 +54,7 @@ const SHORTCUTS: { keys: string; descKey: I18nKey }[] = [
 ];
 
 /** On-demand user guide. Reuses the shared Modal (Esc/backdrop/× close). */
-export function HelpModal({ onClose }: Props) {
+export function HelpModal({ onClose, onStartTour }: Props) {
   const { t } = useI18n();
   return (
     <Modal
@@ -60,6 +63,9 @@ export function HelpModal({ onClose }: Props) {
       footer={<button className="btn" onClick={onClose}>{t("common.close")}</button>}
     >
       <p className="help-intro">{t("help.intro")}</p>
+      {onStartTour && (
+        <button className="btn secondary help-tour-btn" onClick={onStartTour}>{t("tour.helpButton")}</button>
+      )}
 
       {SECTIONS.map((s) => (
         <details className="help-section" key={s.titleKey} open={s.open}>
