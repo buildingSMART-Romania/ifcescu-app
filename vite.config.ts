@@ -1,11 +1,18 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import cesium from "vite-plugin-cesium";
+import { asciiOnly } from "./scripts/asciiOnly";
 
 // base: "./" keeps every asset URL relative, so the built site works at any
 // GitHub Pages path (user.github.io/<repo>/) without rebuilding.
 export default defineConfig({
   base: "./",
+  // Emit pure-ASCII JS/CSS: every non-ASCII char (UI glyphs ▶ ✓ ✕ ×, Romanian
+  // diacritics in the i18n strings) becomes a \uXXXX escape, so a host or FTP
+  // transfer that mangles the encoding can't corrupt the UI (issue #3).
+  // The asciiOnly() plugin escapes what esbuild leaves (regex literals) and
+  // fails the build if anything non-ASCII still reaches the output.
+  esbuild: { charset: "ascii" },
   // @ifc-lite/ids bundles a top-level `await import()` (a Node-only branch of its
   // XML parser). Top-level await needs a modern target; the app already requires
   // WebGPU, so targeting esnext is safe and avoids the es2020 transpile error.
@@ -32,6 +39,7 @@ export default defineConfig({
     // lazy() GlobeViewer import in App.tsx, the multi-MB Cesium code downloads
     // only when the Glob 3D tab is first opened.
     cesium({ rebuildCesium: true }),
+    asciiOnly(),
   ],
   worker: { format: "es" },
   // @ifc-lite ships its own wasm + workers via `new URL(..., import.meta.url)`.
