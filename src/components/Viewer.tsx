@@ -12,7 +12,7 @@ import { buildTree, buildClassTree, buildMaterialTree, getSelectionProps, gather
 import { MeasureTool, type MeasureMode } from "../viewer/measure";
 import { captureSnapshots, type SnapshotTask } from "../viewer/snapshot";
 import { computePlacement, type PlacementMode } from "../geo/placement";
-import { IfcTree, defaultNodeOpen, nodeLabel, type TreeNode } from "./IfcTree";
+import { IfcTree, defaultNodeOpen, nodeLabel, findTreePath, type TreeNode } from "./IfcTree";
 import { ToolIcon, VisIcon, ViewIcon, UiIcon } from "./icons";
 import { PropAccordion, FileInfoPanel, type PropGroup, type FileInfo } from "./PropsPanel";
 import { useI18n } from "../i18n/react";
@@ -305,6 +305,31 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const activeRoots = treeView === "class" ? classRoots : treeView === "material" ? materialRoots : spatialRoots;
   const expanded = expandedByView[treeView];
 
+  // Reveal the focused element in the tree (issue #2): expand its ancestors and
+  // scroll its row into view — after a 3D pick, and again on switching tabs
+  // (each view has its own expansion). `seq` identifies one selection; the ref
+  // remembers per view which selection was already revealed, so collapsing a
+  // branch by hand afterwards isn't undone.
+  const [revealTarget, setRevealTarget] = useState<{ id: number; seq: number } | null>(null);
+  const revealSeq = useRef(0);
+  const revealedRef = useRef(new Map<string, number>());
+  useEffect(() => {
+    const tgt = revealTarget;
+    if (!tgt || !activeRoots || revealedRef.current.get(treeView) === tgt.seq) return;
+    const path = findTreePath(activeRoots, tgt.id);
+    const missing = path?.filter((id) => !expanded.has(id)) ?? [];
+    if (missing.length) {
+      // Expand first; this effect runs again with the new `expanded` and scrolls.
+      setExpandedByView((m) => ({ ...m, [treeView]: new Set([...m[treeView], ...missing]) }));
+      return;
+    }
+    revealedRef.current.set(treeView, tgt.seq);
+    if (!path) return; // not in this view (e.g. no geometry → absent from Clase)
+    requestAnimationFrame(() =>
+      document.querySelector(`.ifctree .trow[data-id="${tgt.id}"]`)?.scrollIntoView({ block: "center" }),
+    );
+  }, [revealTarget, treeView, activeRoots, expanded]);
+
   const toggleNode = (id: number) =>
     setExpandedByView((m) => {
       const next = new Set(m[treeView]);
@@ -372,6 +397,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     // dragging a divider) without the visible lag.
     let resizeRaf = 0;
     const ro = new ResizeObserver(() => {
+      if (panelDragRef.current) return; // divider drag → one resize on release (issue #1)
       cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => engineRef.current?.resize());
     });
@@ -813,7 +839,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // --- selection ----------------------------------------------------------
   // `additive` (Shift+click) toggles the given ids into the current selection
   // instead of replacing it, for multi-select in the 3D viewer.
-  const selectIds = (ids: number[], expressID?: number, additive = false) => {
+  // `fromTree`: the row was clicked in the tree itself, so it's already in view —
+  // only the OTHER views still need to reveal it when switched to.
+  const selectIds = (ids: number[], expressID?: number, additive = false, fromTree = false) => {
     if (ids.length) lastHiddenRef.current = [];
     let next: number[];
     if (additive) {
@@ -846,6 +874,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         : next.length === 1
           ? next[0]
           : undefined;
+    if (propId != null) {
+      const seq = ++revealSeq.current;
+      if (fromTree) revealedRef.current.set(treeView, seq);
+      setRevealTarget({ id: propId, seq });
+    }
     // Route the global id back to its owning model's store for properties.
     const r = propId != null ? engineRef.current?.resolveGlobal(propId) : null;
     if (r) {
@@ -1112,17 +1145,33 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Pointer events (not mouse) on all panel resizers so touch/pen work too.
   // The active drag's teardown lives in a ref so unmounting mid-drag (or a
   // second drag starting) still detaches the window listeners.
+  //
+  // Divider drags size the panel straight in the DOM and hold the WebGPU canvas
+  // resize until release (issue #1). Setting React state on every pointermove
+  // re-rendered the whole viewer, wrote localStorage, and fired engine.resize()
+  // each frame (new swap-chain + depth targets every time) — enough to lose
+  // the GPU device on some machines. `onMove` applies the size and returns it;
+  // `onEnd` commits the last one to state once, then the canvas resizes once.
   const resizeTeardownRef = useRef<(() => void) | null>(null);
+  const panelDragRef = useRef(false);
   useEffect(() => () => { resizeTeardownRef.current?.(); }, []);
-  const beginResizeDrag = (onMove: (ev: PointerEvent) => void) => {
+  const beginResizeDrag = (onMove: (ev: PointerEvent) => number, onEnd: (size: number) => void) => {
     resizeTeardownRef.current?.(); // safety: end any previous drag first
+    panelDragRef.current = true;
+    let last: number | null = null;
+    const move = (ev: PointerEvent) => { last = onMove(ev); };
     const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       resizeTeardownRef.current = null;
+      panelDragRef.current = false;
+      if (last != null) onEnd(last);
+      requestAnimationFrame(() => engineRef.current?.resize());
     };
-    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     resizeTeardownRef.current = onUp;
   };
   const startPropsResize = (e: ReactPointerEvent) => {
@@ -1130,8 +1179,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     // Width is measured from the panel's right edge (which stays fixed as the
     // panel grows leftward), NOT the window edge — otherwise an open IDS/BCF
     // dock sitting to the right throws the math off by its width.
-    const right = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect().right;
-    beginResizeDrag((ev) => setPropsWidth(Math.min(640, Math.max(260, right - ev.clientX))));
+    const panel = (e.currentTarget as HTMLElement).parentElement!;
+    const right = panel.getBoundingClientRect().right;
+    beginResizeDrag((ev) => {
+      const w = Math.min(640, Math.max(260, right - ev.clientX));
+      panel.style.width = `${w}px`;
+      return w;
+    }, setPropsWidth);
   };
 
   // Drive the 3D scene from the analytics dashboard: isolate + color the matched
@@ -1215,11 +1269,21 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     // height tracks the cursor regardless of the toolbar/header above it.
     const panel = (e.currentTarget as HTMLElement).previousElementSibling as HTMLElement | null;
     const top = panel?.getBoundingClientRect().top ?? 0;
-    beginResizeDrag((ev) => setModelsHeight(Math.min(window.innerHeight * 0.75, Math.max(80, ev.clientY - top))));
+    beginResizeDrag((ev) => {
+      const h = Math.min(window.innerHeight * 0.75, Math.max(80, ev.clientY - top));
+      // Same inline style ModelsPanel applies for a fixed height.
+      if (panel) Object.assign(panel.style, { height: `${h}px`, maxHeight: "none", flex: "0 0 auto" });
+      return h;
+    }, setModelsHeight);
   };
   const startTreeResize = (e: ReactPointerEvent) => {
     e.preventDefault();
-    beginResizeDrag((ev) => setTreeWidth(Math.min(560, Math.max(200, ev.clientX - 12))));
+    const aside = (e.currentTarget as HTMLElement).parentElement!;
+    beginResizeDrag((ev) => {
+      const w = Math.min(560, Math.max(200, ev.clientX - 12));
+      aside.style.width = `${w}px`;
+      return w;
+    }, setTreeWidth);
   };
 
   const selArr = () => [...selectedIds];
@@ -1264,7 +1328,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             onExpandAll={expandAllTree}
             visibleIds={visibleIds}
             selectedIds={selectedIds}
-            onSelect={(ids, expressID) => selectIds(ids, expressID)}
+            onSelect={(ids, expressID) => selectIds(ids, expressID, false, true)}
             onToggleVisible={(ids, visible) => (visible ? showIds(ids) : hideIds(ids))}
           />
         ) : (

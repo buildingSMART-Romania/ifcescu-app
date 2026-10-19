@@ -61,6 +61,26 @@ export function nodeLabel(node: TreeNode): string {
           : `${friendly(node.type)} #${node.expressID}`;
 }
 
+/**
+ * Ids of the branch nodes leading to the first node with `id` (root first, the
+ * node itself excluded), or null when the forest doesn't contain it. Used to
+ * expand the tree down to an element picked in 3D.
+ */
+export function findTreePath(roots: TreeNode[], id: number): number[] | null {
+  const path: number[] = [];
+  const walk = (nodes: TreeNode[]): boolean => {
+    for (const n of nodes) {
+      if (n.expressID === id) return true;
+      if (!n.children.length) continue;
+      path.push(n.expressID);
+      if (walk(n.children)) return true;
+      path.pop();
+    }
+    return false;
+  };
+  return walk(roots) ? path : null;
+}
+
 /** A node's searchable text: its name plus its (friendly) IFC class. */
 function nodeText(node: TreeNode): string {
   return `${node.name || ""} ${friendly(node.type)}`.toLowerCase();
@@ -199,6 +219,7 @@ function Node({
     <div className="tnode">
       <div
         className={"trow" + (selected ? " selected" : "")}
+        data-id={node.expressID}
         style={{ paddingLeft: 4 + depth * 14 }}
       >
         <span
