@@ -107,6 +107,7 @@ function hexToRgba(hex: string): [number, number, number, number] {
 const sectionCtlStyle: CSSProperties = {
   position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 9,
   display: "flex", alignItems: "center", gap: 14, padding: "8px 14px",
+  flexWrap: "wrap", justifyContent: "center", width: "max-content", maxWidth: "calc(100% - 24px)",
   background: "rgba(20,20,24,0.86)", color: "#fff", borderRadius: 8,
   boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
 };
@@ -207,7 +208,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       if (engineRef.current) engineRef.current.snapOptions = next;
       return next;
     });
-  const [section, setSection] = useState(false);
+  const [section, setSection] = useState(false); // section tool open (editing the cut)
+  const [secActive, setSecActive] = useState(false); // a cut is applied (editing or confirmed)
   const [secPos, setSecPos] = useState(50);
   const [secFlip, setSecFlip] = useState(false);
   const [secSize, setSecSize] = useState(18); // section indicator size (% of half-diagonal)
@@ -537,12 +539,6 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     if (ready && engineRef.current) rebuildForests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
-
-  // Turning the section tool OFF removes the plane. Turning it ON only ARMS the
-  // tool — the plane is created when the user double-clicks a face.
-  useEffect(() => {
-    if (!section) engineRef.current?.clearSection();
-  }, [section]);
 
   // Keep the fullscreen flag in sync (handles Esc / external exit too).
   useEffect(() => {
@@ -1066,10 +1062,26 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     // Measurement and an active section coexist — do NOT reset the section here.
   };
 
+  // Turning the section tool ON arms it (the plane is created by double-clicking
+  // a face) and re-opens a confirmed cut for editing. Turning it OFF (S / Esc)
+  // cancels — removes the plane; "OK" (commitSection) is the way to keep it.
   const toggleSection = () => {
     const on = !sectionRef.current;
     sectionRef.current = on;
     setSection(on);
+    if (on) engineRef.current?.setSectionEditing(true);
+    else clearSections();
+  };
+
+  // OK: keep the cut but leave the tool — hides the gizmo and restores normal
+  // click-select / double-click framing, so the sliced model can be navigated
+  // and measured as it is (raycasts ignore the cut-away half).
+  const commitSection = () => {
+    sectionRef.current = false;
+    setSection(false);
+    const eng = engineRef.current;
+    if (eng?.hasSection()) eng.setSectionEditing(false);
+    else setSecActive(false);
   };
 
   // Double-click a face → section plane aligned to that face (normal = face
@@ -1084,6 +1096,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     const pos = eng.orientSection([n.x, n.y, n.z], [p.x, p.y, p.z]);
     sectionRef.current = true;
     setSection(true);
+    setSecActive(true);
     setSecPos(pos);
     setSecFlip(false);
   };
@@ -1091,6 +1104,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const clearSections = () => {
     sectionRef.current = false;
     setSection(false);
+    setSecActive(false);
+    engineRef.current?.clearSection();
+    engineRef.current?.setSectionEditing(true);
   };
 
   // Pointer events (not mouse) on all panel resizers so touch/pen work too.
@@ -1278,12 +1294,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <Dropdown label={t("viewer.section")} icon={<ToolIcon kind="section" />} active={section} dataTour="sectionTool">
+          <Dropdown label={t("viewer.section")} icon={<ToolIcon kind="section" />} active={section || secActive} dataTour="sectionTool">
             <button className={"vmenu-item" + (section ? " active" : "")} onClick={toggleSection}>
               <span className="ic"><ToolIcon kind="section" /></span><span>{t("viewer.sectionPlane")}</span><span className="vmenu-key">S</span>
             </button>
             <div className="vmenu-sep" />
-            <button className="vmenu-item danger" onClick={clearSections}><span className="ic"><UiIcon kind="trash" /></span><span>{t("viewer.clearSections")}</span></button>
+            <button className="vmenu-item danger" onClick={clearSections} disabled={!section && !secActive}><span className="ic"><UiIcon kind="trash" /></span><span>{t("viewer.clearSections")}</span></button>
           </Dropdown>
 
           <span className="vsep" />
@@ -1502,6 +1518,21 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
                   onChange={(e) => { setSecFlip(e.target.checked); engineRef.current?.sectionSetFlipped(e.target.checked); }}
                 /> {t("viewer.flip")}
               </label>
+              <button className="sec-btn ok" onClick={commitSection} disabled={!secActive} title={t("viewer.sectionOkTitle")}>
+                ✓ {t("viewer.sectionOk")}
+              </button>
+              <button className="sec-btn" onClick={clearSections} title={t("viewer.clearSections")} aria-label={t("viewer.clearSections")}>
+                <UiIcon kind="trash" />
+              </button>
+            </div>
+          )}
+          {!section && secActive && (
+            <div className="section-ctl" style={sectionCtlStyle}>
+              <span style={{ fontSize: 12 }}><ToolIcon kind="section" /> {t("viewer.sectionKept")}</span>
+              <button className="sec-btn" onClick={toggleSection}>{t("viewer.sectionEdit")}</button>
+              <button className="sec-btn danger" onClick={clearSections}>
+                <UiIcon kind="trash" /> {t("viewer.clearSections")}
+              </button>
             </div>
           )}
         </div>
@@ -1645,6 +1676,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 // Translated at call time (the attribute name stays the IFC identifier).
 const ATTR_LABEL_KEYS: Record<string, I18nKey> = {
   Name: "viewer.attr.name",
+  LongName: "viewer.attr.longName",
+  Phase: "viewer.attr.phase",
   Description: "viewer.attr.description",
   ObjectType: "viewer.attr.objectType",
   Tag: "viewer.attr.tag",
