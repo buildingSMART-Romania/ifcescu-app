@@ -113,6 +113,11 @@ export class ViewerEngine {
     sectionPlane: null,
     clearColor: [0.93, 0.94, 0.96, 1],
   };
+  // Orbit pivot pinned to the selection (pivot mode "selection"). The renderer
+  // carries its orbit centre along with pan/zoom (keeping it under the same
+  // screen spot), so after a pan the camera would orbit empty space — the
+  // pivot is re-applied at the start of every orbit gesture instead.
+  private pivot: { x: number; y: number; z: number } | null = null;
   private raf = 0;
   private lastT = 0;
   private disposed = false;
@@ -620,6 +625,7 @@ export class ViewerEngine {
 
     const onDown = (e: PointerEvent) => {
       btn = e.button;
+      if (btn === 0) this.repinPivot();
       lx = e.clientX; ly = e.clientY;
       cv.setPointerCapture(e.pointerId);
     };
@@ -859,17 +865,14 @@ export class ViewerEngine {
    *  "orbit around selection" nav mode). Pass null to revert to orbiting around
    *  the camera target (the default, which C / frame recenters). */
   setPivotToSelection(ids: Iterable<number> | null): void {
-    const cam = this.renderer.getCamera();
     const b = ids ? this.selectionBounds(ids) : null;
-    if (!b) {
-      cam.setOrbitCenter(null);
-      return;
-    }
-    cam.setOrbitCenter({
-      x: (b.min[0] + b.max[0]) / 2,
-      y: (b.min[1] + b.max[1]) / 2,
-      z: (b.min[2] + b.max[2]) / 2,
-    });
+    this.pivot = b ? { x: (b.min[0] + b.max[0]) / 2, y: (b.min[1] + b.max[1]) / 2, z: (b.min[2] + b.max[2]) / 2 } : null;
+    this.renderer.getCamera().setOrbitCenter(this.pivot ? { ...this.pivot } : null);
+  }
+
+  /** Put the orbit centre back on the selection before an orbit gesture. */
+  private repinPivot(): void {
+    if (this.pivot) this.renderer.getCamera().setOrbitCenter({ ...this.pivot });
   }
 
   /** Frame a cube of half-size `half` centered on a world point (Y-up). Used by
@@ -923,6 +926,7 @@ export class ViewerEngine {
 
   /** Orbit the camera by raw pixel deltas (used by the nav-cube drag). */
   orbit(dx: number, dy: number): void {
+    this.repinPivot();
     this.renderer.getCamera().orbit(dx * ORBIT_SENS, dy * ORBIT_SENS, false);
     this.renderer.requestRender();
   }
