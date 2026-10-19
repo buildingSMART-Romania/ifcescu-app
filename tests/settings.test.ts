@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // settings/index.ts reads localStorage at module load — shim it before importing.
 function installStorage(seed?: Record<string, string>): Map<string, string> {
@@ -41,14 +41,47 @@ describe("settings merge of older persisted blobs", () => {
     expect(s.viewer.snap).toEqual(DEFAULTS.viewer.snap);
   });
 
-  it("nav defaults are sane (manual pivot, 100% speeds, dbl-click on)", async () => {
+  it("nav defaults are sane (orbit around selection, 100% speeds, dbl-click on)", async () => {
     const { DEFAULTS } = await import("../src/settings/index");
     expect(DEFAULTS.viewer.nav).toEqual({
-      pivotMode: "manual",
+      pivotMode: "selection",
       zoomSpeed: 1,
       orbitSpeed: 1,
       panSpeed: 1,
       dblClickFrame: true,
     });
+  });
+});
+
+// load() runs at module import, so each case seeds storage and re-imports.
+describe("pivot-mode migration of stored blobs", () => {
+  const KEY = "ifc-app-settings";
+  async function loadWith(blob: unknown) {
+    installStorage({ [KEY]: JSON.stringify(blob) });
+    vi.resetModules();
+    return (await import("../src/settings/index")).getSettings();
+  }
+
+  it("a pre-v2 blob holding the old default 'manual' picks up orbit-around-selection", async () => {
+    const s = await loadWith({ viewer: { navCube: false, nav: { pivotMode: "manual", zoomSpeed: 2 } } });
+    expect(s.viewer.nav.pivotMode).toBe("selection");
+    expect(s.viewer.nav.zoomSpeed).toBe(2); // the rest of the blob is kept
+    expect(s.viewer.navCube).toBe(false);
+  });
+
+  it("an explicit 'manual' saved as v2 is respected", async () => {
+    expect((await loadWith({ v: 2, viewer: { nav: { pivotMode: "manual" } } })).viewer.nav.pivotMode).toBe("manual");
+  });
+
+  it("a pre-v2 non-default choice (autoFrame) is kept", async () => {
+    expect((await loadWith({ viewer: { nav: { pivotMode: "autoFrame" } } })).viewer.nav.pivotMode).toBe("autoFrame");
+  });
+
+  it("saving writes the v2 marker", async () => {
+    const m = installStorage();
+    vi.resetModules();
+    const { updateSettings } = await import("../src/settings/index");
+    updateSettings({ viewer: { nav: { pivotMode: "manual" } } });
+    expect(JSON.parse(m.get(KEY)!).v).toBe(2);
   });
 });

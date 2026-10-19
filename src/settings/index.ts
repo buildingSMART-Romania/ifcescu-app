@@ -47,11 +47,16 @@ export const DEFAULTS: Settings = {
     projection: "perspective",
     snap: { vertex: true, midpoint: true, edge: true, face: true },
     selection: { outline: "#bcf124", fill: null },
-    nav: { pivotMode: "manual", zoomSpeed: 1, orbitSpeed: 1, panSpeed: 1, dblClickFrame: true },
+    nav: { pivotMode: "selection", zoomSpeed: 1, orbitSpeed: 1, panSpeed: 1, dblClickFrame: true },
   },
 };
 
 const KEY = "ifc-app-settings";
+// Stored-blob version. v2: the orbit pivot defaults to the selection. Blobs
+// saved before stored the then-default "manual" verbatim (every save writes the
+// whole object), so on load a pre-v2 "manual" is dropped to pick up the new
+// default; a later explicit choice of "manual" is saved as v2 and kept.
+const VERSION = 2;
 
 /** Deep-merge a stored (possibly partial / outdated) blob over the defaults. */
 function merge(base: Settings, patch: any): Settings {
@@ -73,7 +78,9 @@ function load(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const merged = merge(DEFAULTS, JSON.parse(raw));
+      const stored = JSON.parse(raw);
+      if ((stored?.v ?? 1) < 2 && stored?.viewer?.nav?.pivotMode === "manual") delete stored.viewer.nav.pivotMode;
+      const merged = merge(DEFAULTS, stored);
       // Experimental features are session-only: they always start disabled on app
       // load and must be re-enabled from Settings (so e.g. the Analytics panel never
       // appears just because it was on last time). Other settings persist.
@@ -96,7 +103,7 @@ export function getSettings(): Settings {
 export function updateSettings(patch: any): void {
   current = merge(current, patch);
   try {
-    localStorage.setItem(KEY, JSON.stringify(current));
+    localStorage.setItem(KEY, JSON.stringify({ ...current, v: VERSION }));
   } catch {
     /* ignore persistence failures */
   }
