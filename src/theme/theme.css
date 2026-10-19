@@ -3466,3 +3466,17 @@ table.summary td.k {
   margin-top: 12px;
 }
 
+
+/* Section tool bar buttons (dark floating panel over the 3D view). */
+.section-ctl .sec-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; font-size: 12px; font-weight: 600; line-height: 1;
+  color: #fff; background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; cursor: pointer;
+}
+.section-ctl .sec-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.section-ctl .sec-btn:disabled { opacity: 0.4; cursor: default; }
+.section-ctl .sec-btn.ok { background: var(--bs-magenta); border-color: var(--bs-magenta); }
+.section-ctl .sec-btn.ok:hover:not(:disabled) { background: var(--bs-magenta-dark); }
+.section-ctl .sec-btn.danger:hover { background: var(--danger, #d33); border-color: var(--danger, #d33); }
+.section-ctl .sec-btn svg { width: 14px; height: 14px; }

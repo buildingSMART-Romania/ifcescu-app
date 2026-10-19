@@ -18,6 +18,9 @@ export interface FileInfo {
   fileSizeKB: number;
   schema: string;
   projectName: string;
+  /** IfcProject.LongName — often the full project title when Name is a short code. */
+  projectLongName: string;
+  projectPhase: string;
   projectGlobalId: string;
   totalEntities: number;
   elementsWithGeometry: number;
@@ -58,10 +61,12 @@ export function FileInfoPanel({ info }: { info: FileInfo }) {
         <InfoRow k={t("props.schema")} v={info.schema} />
       </div>
 
-      {(info.projectName || info.projectGlobalId) && (
+      {(info.projectName || info.projectLongName || info.projectGlobalId) && (
         <div className="finfo-sec">
           <h4>{t("props.projectInfo")}</h4>
           {info.projectName && <InfoRow k={t("props.name")} v={info.projectName} />}
+          {info.projectLongName && <InfoRow k={t("props.longName")} v={info.projectLongName} />}
+          {info.projectPhase && <InfoRow k={t("props.phase")} v={info.projectPhase} />}
           {info.projectGlobalId && <InfoRow k="GlobalId" v={info.projectGlobalId} />}
         </div>
       )}

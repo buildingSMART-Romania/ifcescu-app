@@ -9,6 +9,7 @@ import {
   prettyIfcType,
   entityType,
   entityName,
+  entityLongAttrs,
 } from "../src/viewer/model";
 import type { TreeNode } from "../src/components/IfcTree";
 
@@ -145,5 +146,25 @@ describe("model.prettyIfcType", () => {
     expect(prettyIfcType("IFCWALLSTANDARDCASE")).toBe("IfcWallstandardcase");
     expect(prettyIfcType("")).toBe("");
     expect(prettyIfcType("MODEL")).toBe("MODEL");
+  });
+});
+
+describe("model.entityLongAttrs", () => {
+  // Site-plan exports keep a short code in Name and the full title in LongName
+  // (with \X2\ / \X\ encoded diacritics) — the overview must show both.
+  const TITLED = IFC.replace(
+    "#1=IFCPROJECT('0YvctVUKr0kugbFTf53O9L',$,'P',$,$,$,$,$,$);",
+    String.raw`#1=IFCPROJECT('0YvctVUKr0kugbFTf53O9L',$,'1234',$,$,'Construire locuin\X2\021B0103\X0\ \X\EEmprejmuire','DTAC',$,$);`,
+  );
+
+  it("reads LongName and Phase of IfcProject, decoding STEP escapes", async () => {
+    const store = await parseStore(new TextEncoder().encode(TITLED));
+    expect(entityName(store, 1)).toBe("1234");
+    expect(entityLongAttrs(store, 1)).toEqual({ longName: "Construire locuință împrejmuire", phase: "DTAC" });
+  });
+
+  it("returns empty strings for classes without LongName", async () => {
+    const store = await fixture();
+    expect(entityLongAttrs(store, 10)).toEqual({ longName: "", phase: "" });
   });
 });

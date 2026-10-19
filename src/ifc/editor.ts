@@ -82,6 +82,8 @@ export interface SelectionDetail {
 
 /** IfcRoot attributes we expose for editing (in order). */
 const EDITABLE_ATTRS = ["Name", "Description", "ObjectType", "Tag"] as const;
+/** Text attributes shown/edited only when the entity's class declares them. */
+const OPTIONAL_TEXT_ATTRS = ["LongName", "Phase"] as const;
 
 /** Canonical PascalCase IFC type name ("IFCWALL" → "IfcWall"). */
 function prettyType(type: string): string {
@@ -189,6 +191,12 @@ export class IfcEditor {
 
     const groups: EditGroup[] = [];
     const attrRows: EditRow[] = EDITABLE_ATTRS.map((n) => ({ name: n, value: attrVal(n), edited: editedAttrs.has(n) }));
+    // LongName/Phase only where the class declares them (IfcProject, spatial
+    // elements, zones…) — the full project title often lives in LongName.
+    const declared = e ? new Set(getRawNamedAttributes(e).map((p) => p.name)) : new Set<string>();
+    for (const n of OPTIONAL_TEXT_ATTRS) {
+      if (declared.has(n)) attrRows.splice(n === "LongName" ? 1 : attrRows.length, 0, { name: n, value: attrVal(n), edited: editedAttrs.has(n) });
+    }
     // PredefinedType (enum) only when the entity's class actually declares it.
     if (e && getRawNamedAttributes(e).some((p) => p.name === "PredefinedType")) {
       const noDots = attrVal("PredefinedType").replace(/^\./, "").replace(/\.$/, "");

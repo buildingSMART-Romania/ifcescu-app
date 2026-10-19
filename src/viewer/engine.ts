@@ -3,12 +3,13 @@
 // canvas), the render loop, picking, per-element bounds (zoom-to-selection) and
 // the renderer-Y-up → IFC coordinate conversion the measurement readout needs.
 import { Renderer, planeBasis, nearestCardinalAxis, FederationRegistry } from "@ifc-lite/renderer";
-import type { SectionPlane } from "@ifc-lite/renderer";
+import type { SectionPlane, Raycaster } from "@ifc-lite/renderer";
 import { GeometryProcessor, type MeshData } from "@ifc-lite/geometry";
 import type { IfcDataStore } from "@ifc-lite/parser";
 import type { ViewerCameraState, ViewerBounds } from "@ifc-lite/bcf";
 import { parseStore } from "../ifc/store";
 import { cameraToBcf, cameraFromBcf, boundsToBcf } from "./bcfCoords";
+import { clipAwareRaycast, isClipped, type ClipPlane } from "./sectionClip";
 import { t } from "../i18n";
 
 export interface RenderState {
@@ -95,6 +96,9 @@ export class ViewerEngine {
   private secCenterWorld: [number, number, number] | null = null;
   private secQuad: [number, number, number][] | null = null; // 4 corners of the indicator
   private secSizePct = 0.18; // indicator half-size as a fraction of the model half-diagonal
+  // false once the user confirms the cut (OK): the clip stays, but the indicator
+  // and drag handle are hidden so the model can be navigated/measured as cut.
+  private secEditing = true;
   private handleDrag: { lastX: number; lastY: number } | null = null;
   /** Notified when the in-viewer handle drags the section, so the UI slider stays in sync. */
   onSectionMove: ((pos: number) => void) | null = null;
@@ -120,10 +124,23 @@ export class ViewerEngine {
 
   async init(): Promise<void> {
     await this.renderer.init();
+    this.installClipAwareRaycast();
     this.attachControls();
     this.createOutlineOverlay();
     this.lastT = performance.now();
     this.loop();
+  }
+
+  /** Make the CPU raycaster (measure snap, face pick) ignore the cut-away half. */
+  private installClipAwareRaycast(): void {
+    const rc: Raycaster = this.renderer.getRaycaster();
+    rc.raycast = clipAwareRaycast(rc.raycast.bind(rc), () => this.clipPlane());
+  }
+
+  /** The active cut in raycast terms, or null when no section is applied. */
+  private clipPlane(): ClipPlane | null {
+    const sp = this.state.sectionPlane;
+    return sp?.enabled && sp.normal && sp.distance != null ? { normal: sp.normal, distance: sp.distance, flipped: sp.flipped } : null;
   }
 
   private createOutlineOverlay(): void {
@@ -485,7 +502,7 @@ export class ViewerEngine {
    */
   private uploadSectionPlane(): void {
     const mb = this.modelBounds();
-    if (!this.sec || !this.sec.enabled || !mb) {
+    if (!this.sec || !this.sec.enabled || !mb || !this.secEditing) {
       this.secCenterWorld = null;
       this.secQuad = null;
       return;
@@ -685,6 +702,7 @@ export class ViewerEngine {
     const worldR = (SNAP_PX / (h / 2)) * Math.tan(cam.getFOV() / 2) * dist * 2; // generous prefilter
     const wr2 = worldR * worldR;
     const V = data.verts;
+    const clip = this.clipPlane(); // never snap to vertices/edges the section cut away
 
     let best: { point: { x: number; y: number; z: number }; type: SnapType } | null = null;
     let bestPx = SNAP_PX;
@@ -692,6 +710,7 @@ export class ViewerEngine {
     const consider = (px: number, py: number, pz: number, pri: number, type: SnapType) => {
       const dx = px - P.x, dy = py - P.y, dz = pz - P.z;
       if (dx * dx + dy * dy + dz * dz > wr2) return;
+      if (clip && isClipped(clip, { x: px, y: py, z: pz })) return;
       const s = cam.projectToScreen({ x: px, y: py, z: pz }, w, h);
       if (!s) return;
       const d = Math.hypot(s.x - cx, s.y - cy);
@@ -773,6 +792,18 @@ export class ViewerEngine {
     this.sec = { normal: n, dMin, dMax, pos, flipped: false, enabled: true, anchor: point };
     this.applySection();
     return Math.round(pos);
+  }
+
+  /** True while a cut is applied (being edited or confirmed). */
+  hasSection(): boolean {
+    return !!this.sec?.enabled;
+  }
+
+  /** Show/hide the section gizmo (indicator + drag handle). The cut itself stays. */
+  setSectionEditing(on: boolean): void {
+    this.secEditing = on;
+    this.uploadSectionPlane();
+    this.renderer.requestRender();
   }
 
   /** Remove the section plane entirely (no cut, no indicator). */

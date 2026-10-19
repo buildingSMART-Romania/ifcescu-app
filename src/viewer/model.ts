@@ -4,6 +4,7 @@
 import {
   SpatialHierarchyBuilder,
   extractRootAttributesFromEntity,
+  getRawNamedAttributes,
   extractPropertiesOnDemand,
   extractQuantitiesOnDemand,
   buildMaterialUsageIndex,
@@ -29,6 +30,24 @@ export function entityType(store: IfcDataStore, id: number): string {
 export function entityName(store: IfcDataStore, id: number): string {
   const e = (store as any).getEntity(id);
   return e ? extractRootAttributesFromEntity(e).name ?? "" : "";
+}
+
+/**
+ * LongName + Phase by schema attribute name (IfcProject/IfcContext, spatial
+ * elements, zones…). extractRootAttributesFromEntity doesn't return them, yet
+ * tools like the site-plan app put the full project title in LongName and leave
+ * Name as a short code ("18"). '' when the type doesn't declare the attribute.
+ */
+export function entityLongAttrs(store: IfcDataStore, id: number): { longName: string; phase: string } {
+  const e = (store as any).getEntity(id);
+  const out = { longName: "", phase: "" };
+  if (!e) return out;
+  for (const { name, raw } of getRawNamedAttributes(e)) {
+    if (typeof raw !== "string") continue;
+    if (name === "LongName") out.longName = raw;
+    else if (name === "Phase") out.phase = raw;
+  }
+  return out;
 }
 
 /** Build the spatial-structure tree (containers + element leaves) for IfcTree. */
@@ -202,10 +221,13 @@ export function getSelectionProps(store: IfcDataStore, id: number): SelectionPro
   const header = { name: root.name ?? "", type: prettyIfcType(entityType(store, id)) };
 
   const groups: PropGroup[] = [];
+  const long = entityLongAttrs(store, id);
   const attrs = [
     { k: t("viewer.attr.name"), v: root.name ?? "" },
+    { k: t("viewer.attr.longName"), v: long.longName },
     { k: "GlobalId", v: root.globalId ?? "" },
     { k: t("viewer.attr.description"), v: (root as any).description ?? "" },
+    { k: t("viewer.attr.phase"), v: long.phase },
   ].filter((r) => r.v.length);
   if (attrs.length) groups.push({ name: t("viewer.attrGroup"), rows: attrs });
 
@@ -237,10 +259,13 @@ export function gatherFileInfo(
   const projIds = byType.get("IFCPROJECT") ?? [];
   let projectName = "";
   let projectGlobalId = "";
+  let projectLongName = "";
+  let projectPhase = "";
   if (projIds.length) {
     const root = extractRootAttributesFromEntity((store as any).getEntity(projIds[0]));
     projectName = root.name ?? "";
     projectGlobalId = root.globalId ?? "";
+    ({ longName: projectLongName, phase: projectPhase } = entityLongAttrs(store, projIds[0]));
   }
 
   // Location pin via the same placement logic as the globe (single source of
@@ -260,6 +285,8 @@ export function gatherFileInfo(
     fileSizeKB: byteLength / 1024,
     schema: schema || "—",
     projectName,
+    projectLongName,
+    projectPhase,
     projectGlobalId,
     totalEntities: store.entityIndex.byId.size,
     elementsWithGeometry,
