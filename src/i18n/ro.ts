@@ -422,6 +422,10 @@ export const ro = {
     },
     patternPh: "Tipar XSD, ex. EF_.*",
     enumPh: "Valori separate prin virgulă",
+    dataTypeNotExact: "Tipul de date trebuie să fie un singur nume de tip IFC (ex. IFCLABEL). Intervalele, listele și tiparele se pun la „Valoare”.",
+    dataTypeMove: "Mută la Valoare",
+    dataTypeClear: "Elimină",
+    exportError: "Nu se poate exporta: {detail}",
   },
   filter: {
     tab: "Filtru",

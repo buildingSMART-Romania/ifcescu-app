@@ -4,7 +4,7 @@ import { useI18n } from "../i18n/react";
 import type { IfcSchemaVersion } from "@ifc-lite/data";
 import type { PivotModel } from "../viewer/pivot";
 import {
-  parseIdsXml, serializeIds, auditIds, isXsDate, hasIdsContent,
+  parseIdsXml, serializeIds, auditIds, isXsDate, hasIdsContent, IdsExportError,
   emptyIdsDoc, emptySpec, emptyRequirement, defaultFacet,
   type IDSDocument, type IDSSpecification, type IDSFacet, type IDSConstraint,
   type IFCVersion, type RequirementOptionality, type PartOfRelation, type IDSAuditIssue,
@@ -147,7 +147,15 @@ export function IdsEditorModal({ schema, pivotModels, initialDoc, onValidate, on
     setPending(null);
   };
   const doExport = () => {
-    const xml = serializeIds(doc);
+    let xml: string;
+    try {
+      xml = serializeIds(doc);
+    } catch (e: any) {
+      // Never hand out a file that silently differs from what the editor checks.
+      const detail = e instanceof IdsExportError ? `"${e.property}" — ${t("idsEditor.dataTypeNotExact")}` : e?.message ?? "";
+      setValError(t("idsEditor.exportError", { detail }));
+      return;
+    }
     const name = (doc.info.title || "specification").replace(/[^\w.-]+/g, "_");
     const url = URL.createObjectURL(new Blob([xml], { type: "application/xml" }));
     const a = document.createElement("a");
@@ -398,15 +406,29 @@ function FacetEditor({ facet, suggest, onChange }: { facet: IDSFacet; suggest: S
           <ConstraintField label={t("idsEditor.f.value")} value={facet.value} optional onChange={(c) => set({ value: c })} />
         </div>
       );
-    case "property":
+    case "property": {
+      // IDS 1.0: dataType is one IFC type name (an attribute). A range/list/
+      // pattern there was never valid — it fails every check and can't be
+      // exported — but older drafts (or IDS 0.9.7 files) may still carry one.
+      const badDataType = facet.dataType && facet.dataType.type !== "simpleValue" ? facet.dataType : undefined;
       return (
         <div className="idse-fields">
           <ConstraintField label={t("idsEditor.f.pset")} value={facet.propertySet} suggestions={suggest.psets} onChange={(c) => set({ propertySet: c ?? { type: "simpleValue", value: "" } })} />
           <ConstraintField label={t("idsEditor.f.baseName")} value={facet.baseName} suggestions={suggest.props} onChange={(c) => set({ baseName: c ?? { type: "simpleValue", value: "" } })} />
-          <ConstraintField label={t("idsEditor.f.dataType")} value={facet.dataType} optional suggestions={suggest.dataTypes} onChange={(c) => set({ dataType: c })} />
+          <ConstraintField label={t("idsEditor.f.dataType")} value={badDataType ? undefined : facet.dataType} optional kinds={["simpleValue"]}
+            suggestions={suggest.dataTypes} onChange={(c) => set({ dataType: c })} />
+          {badDataType && (
+            <div className="idse-issue error">
+              {t("idsEditor.dataTypeNotExact")}{" "}
+              <button className="btn secondary set-mini" onClick={() => set(facet.value ? { dataType: undefined } : { dataType: undefined, value: badDataType })}>
+                {facet.value ? t("idsEditor.dataTypeClear") : t("idsEditor.dataTypeMove")}
+              </button>
+            </div>
+          )}
           <ConstraintField label={t("idsEditor.f.value")} value={facet.value} optional onChange={(c) => set({ value: c })} />
         </div>
       );
+    }
     case "classification":
       return (
         <div className="idse-fields">
@@ -440,10 +462,13 @@ function FacetEditor({ facet, suggest, onChange }: { facet: IDSFacet; suggest: S
 type Kind = "any" | "simpleValue" | "enumeration" | "pattern" | "bounds";
 function kindOf(c: IDSConstraint | undefined): Kind { return c ? c.type : "any"; }
 
-function ConstraintField({ label, value, optional, suggestions, onChange }: {
+function ConstraintField({ label, value, optional, suggestions, kinds, onChange }: {
   label: string; value: IDSConstraint | undefined; optional?: boolean; suggestions?: string[];
+  /** Restrict the offered constraint kinds (default: all). */
+  kinds?: Exclude<Kind, "any">[];
   onChange: (c: IDSConstraint | undefined) => void;
 }) {
+  const allowed = (k: Exclude<Kind, "any">) => !kinds || kinds.includes(k);
   const { t } = useI18n();
   const listId = useId();
   const kind = kindOf(value);
@@ -464,10 +489,10 @@ function ConstraintField({ label, value, optional, suggestions, onChange }: {
         <span className="idse-cf-label">{label}</span>
         <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
           {optional && <option value="any">{t("idsEditor.k.any")}</option>}
-          <option value="simpleValue">{t("idsEditor.k.exact")}</option>
-          <option value="enumeration">{t("idsEditor.k.enum")}</option>
-          <option value="pattern">{t("idsEditor.k.pattern")}</option>
-          <option value="bounds">{t("idsEditor.k.bounds")}</option>
+          {allowed("simpleValue") && <option value="simpleValue">{t("idsEditor.k.exact")}</option>}
+          {allowed("enumeration") && <option value="enumeration">{t("idsEditor.k.enum")}</option>}
+          {allowed("pattern") && <option value="pattern">{t("idsEditor.k.pattern")}</option>}
+          {allowed("bounds") && <option value="bounds">{t("idsEditor.k.bounds")}</option>}
         </select>
       </div>
       {kind === "simpleValue" && (

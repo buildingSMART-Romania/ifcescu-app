@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { serializeIds, parseIdsXml } from "../src/ifc/ids";
+import { serializeIds, parseIdsXml, IdsExportError } from "../src/ifc/ids";
 import { auditIDSDocument } from "@ifc-lite/ids";
 import type { IDSDocument } from "../src/ifc/ids";
 
@@ -77,6 +77,34 @@ describe("serializeIds", () => {
     expect(serializeIds(bad)).not.toContain("<author>");
     const ok: IDSDocument = { ...bad, info: { title: "t", author: "a@b.com" } };
     expect(serializeIds(ok)).toContain("<author>a@b.com</author>");
+  });
+
+  it("refuses a property dataType that isn't one IFC type name instead of dropping it", () => {
+    // The bug: a range typed into "Data type" was validated in-app but silently
+    // left out of the exported file, which then only checked existence.
+    const doc: IDSDocument = {
+      info: { title: "t" },
+      specifications: [{
+        id: "s", name: "Testam POT", ifcVersions: ["IFC4X3"],
+        applicability: { facets: [{ type: "entity", name: { type: "simpleValue", value: "IFCSITE" } }] },
+        requirements: [{ id: "r", optionality: "required", facet: {
+          type: "property",
+          propertySet: { type: "simpleValue", value: "RoPSet_Indicatori_Urbanistici" },
+          baseName: { type: "simpleValue", value: "POT_Propus" },
+          dataType: { type: "bounds", maxInclusive: 0.3 },
+        } }],
+      }],
+    };
+    expect(() => serializeIds(doc)).toThrow(IdsExportError);
+    expect(() => serializeIds(doc)).toThrow(/RoPSet_Indicatori_Urbanistici\.POT_Propus/);
+
+    // The same limit where it belongs (Value) exports and parses back as a value range.
+    const fixed = structuredClone(doc);
+    const f = fixed.specifications[0].requirements[0].facet;
+    if (f.type === "property") { f.value = f.dataType; f.dataType = undefined; }
+    const back = parseIdsXml(serializeIds(fixed)).specifications[0].requirements[0].facet;
+    expect(back.type === "property" && back.dataType).toBeUndefined();
+    expect(back.type === "property" && back.value).toMatchObject({ type: "bounds", maxInclusive: 0.3 });
   });
 
   it("round-trips: parse(serialize(doc)) preserves the structure", () => {

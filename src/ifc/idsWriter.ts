@@ -62,6 +62,15 @@ function valueEl(tag: string, c: IDSConstraint | undefined): string[] {
   return [`<${tag}>`, ...indent(inner, 1), `</${tag}>`];
 }
 
+/** The document holds something IDS 1.0 XML can't express (nothing is written).
+ *  `property` names the offending property ("Pset.Name") for UI messages. */
+export class IdsExportError extends Error {
+  name = "IdsExportError";
+  constructor(message: string, readonly property: string) {
+    super(message);
+  }
+}
+
 /** The plain (simpleValue) string of a constraint, for attribute serialisation. */
 function simpleString(c: IDSConstraint | undefined): string | null {
   return c && c.type === "simpleValue" ? c.value : null;
@@ -76,8 +85,19 @@ function entityChildren(f: IDSEntityFacet): string[] {
 function facetLines(f: IDSFacet, cardinality?: RequirementOptionality, description?: string): string[] {
   const attrs: string[] = [];
   // property carries dataType as an attribute (plain string), not a child element.
+  // A range/list/pattern can't be written there, so refuse rather than silently
+  // dropping it (the export would then test something else than the editor did).
   let dataType: string | null = null;
-  if (f.type === "property") dataType = simpleString(f.dataType);
+  if (f.type === "property") {
+    dataType = simpleString(f.dataType);
+    if (f.dataType && dataType === null) {
+      const prop = `${simpleString(f.propertySet) ?? "?"}.${simpleString(f.baseName) ?? "?"}`;
+      throw new IdsExportError(
+        `Property "${prop}": the data type must be a single IFC type name (e.g. IFCLABEL), not a ${f.dataType.type} constraint. Put value conditions in "Value".`,
+        prop,
+      );
+    }
+  }
   if (dataType) attrs.push(`dataType="${esc(dataType)}"`);
   if (cardinality) attrs.push(`cardinality="${cardinality}"`);
   if (description) attrs.push(`instructions="${esc(description)}"`);

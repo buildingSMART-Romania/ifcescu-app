@@ -418,6 +418,10 @@ export const en: Dict = {
     },
     patternPh: "XSD pattern, e.g. EF_.*",
     enumPh: "Comma-separated values",
+    dataTypeNotExact: "The data type must be one IFC type name (e.g. IFCLABEL). Ranges, lists and patterns belong in \"Value\".",
+    dataTypeMove: "Move to Value",
+    dataTypeClear: "Remove",
+    exportError: "Can't export: {detail}",
   },
   filter: {
     tab: "Filter",
