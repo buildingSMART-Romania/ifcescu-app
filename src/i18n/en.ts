@@ -392,6 +392,7 @@ export const en: Dict = {
     requirements: "Requirements (what must hold)",
     noRequirements: "No requirements yet.",
     addFacet: "+ Add facet…",
+    changeFacetType: "Change the facet type (compatible values are kept)",
     facet: {
       entity: "Entity",
       attribute: "Attribute",

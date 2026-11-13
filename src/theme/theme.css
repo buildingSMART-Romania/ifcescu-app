@@ -2968,6 +2968,26 @@ table.summary td.k {
   font-size: 0.8rem;
   color: var(--accent);
 }
+/* The facet title is a <select> (switch the facet type in place): keep it
+   reading as the title — accent text, no box — and show it's clickable. */
+.idse-facet-top select.idse-facet-type {
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.idse-facet-top select.idse-facet-type:hover,
+.idse-facet-top select.idse-facet-type:focus-visible {
+  border-color: var(--border);
+  background: var(--bg);
+}
+.idse-facet-top select.idse-facet-type option {
+  color: var(--text);
+  font-weight: 400;
+}
 .idse-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

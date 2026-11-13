@@ -5,7 +5,7 @@ import type { IfcSchemaVersion } from "@ifc-lite/data";
 import type { PivotModel } from "../viewer/pivot";
 import {
   parseIdsXml, serializeIds, auditIds, isXsDate, hasIdsContent, IdsExportError,
-  emptyIdsDoc, emptySpec, emptyRequirement, defaultFacet,
+  emptyIdsDoc, emptySpec, emptyRequirement, defaultFacet, convertFacet,
   type IDSDocument, type IDSSpecification, type IDSFacet, type IDSConstraint,
   type IFCVersion, type RequirementOptionality, type PartOfRelation, type IDSAuditIssue,
   type IDSValidationReport,
@@ -336,7 +336,7 @@ function SpecForm({ spec, suggest, update }: { spec: IDSSpecification; suggest: 
         {spec.requirements.map((r, i) => (
           <div key={r.id} className="idse-facet">
             <div className="idse-facet-top">
-              <span className="idse-facet-type">{t(`idsEditor.facet.${r.facet.type}` as any)}</span>
+              <FacetTypeSelect type={r.facet.type} onChange={(tp) => update((s) => { s.requirements[i].facet = convertFacet(s.requirements[i].facet, tp); })} />
               <select value={r.optionality} onChange={(e) => update((s) => { s.requirements[i].optionality = e.target.value as RequirementOptionality; })}>
                 {OPTIONALITY.map((o) => <option key={o} value={o}>{t(`idsEditor.opt.${o}` as any)}</option>)}
               </select>
@@ -362,7 +362,7 @@ function FacetSection({ title, hint, facets, suggest, onAdd, onChange, onRemove 
       {facets.map((f, i) => (
         <div key={i} className="idse-facet">
           <div className="idse-facet-top">
-            <span className="idse-facet-type">{facetLabel(f.type)}</span>
+            <FacetTypeSelect type={f.type} onChange={(tp) => onChange(i, convertFacet(f, tp))} />
             <span style={{ flex: 1 }} />
             <button className="idse-spec-x" onClick={() => onRemove(i)}>×</button>
           </div>
@@ -373,16 +373,29 @@ function FacetSection({ title, hint, facets, suggest, onAdd, onChange, onRemove 
   );
 }
 
-function facetLabel(type: IDSFacet["type"]): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
-}
-
 function AddFacetMenu({ onAdd }: { onAdd: (type: IDSFacet["type"]) => void }) {
   const { t } = useI18n();
   return (
     <select className="idse-add" value="" onChange={(e) => { if (e.target.value) onAdd(e.target.value as IDSFacet["type"]); e.target.value = ""; }}>
       <option value="">{t("idsEditor.addFacet")}</option>
-      {FACET_TYPES.map((tp) => <option key={tp} value={tp}>{facetLabel(tp)}</option>)}
+      {FACET_TYPES.map((tp) => <option key={tp} value={tp}>{t(`idsEditor.facet.${tp}` as any)}</option>)}
+    </select>
+  );
+}
+
+/** The facet's title doubles as a type switcher: pick another facet type and
+ *  the facet is converted in place (compatible values kept — convertFacet). */
+function FacetTypeSelect({ type, onChange }: { type: IDSFacet["type"]; onChange: (type: IDSFacet["type"]) => void }) {
+  const { t } = useI18n();
+  return (
+    <select
+      className="idse-facet-type"
+      value={type}
+      title={t("idsEditor.changeFacetType")}
+      aria-label={t("idsEditor.changeFacetType")}
+      onChange={(e) => onChange(e.target.value as IDSFacet["type"])}
+    >
+      {FACET_TYPES.map((tp) => <option key={tp} value={tp}>{t(`idsEditor.facet.${tp}` as any)}</option>)}
     </select>
   );
 }

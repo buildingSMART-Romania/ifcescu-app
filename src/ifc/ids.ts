@@ -138,6 +138,30 @@ export function defaultFacet(type: IDSFacet["type"]): IDSFacet {
 }
 
 /**
+ * Change a facet's type in place (IDS creator) instead of delete-and-re-add.
+ * Starts from the new type's defaults and keeps what still means the same
+ * thing: the `value` constraint across Attribute/Property/Classification/
+ * Material, and the class between an Entity facet and Part of's parent entity.
+ * Everything else (pset/property names, data type, system…) has no
+ * counterpart and is dropped.
+ */
+export function convertFacet(facet: IDSFacet, type: IDSFacet["type"]): IDSFacet {
+  if (facet.type === type) return facet;
+  const next = defaultFacet(type);
+  const value = "value" in facet ? facet.value : undefined;
+  if (value && (next.type === "attribute" || next.type === "property" || next.type === "classification" || next.type === "material")) {
+    next.value = structuredClone(value);
+  }
+  if (facet.type === "entity" && next.type === "partOf") {
+    next.entity = structuredClone(facet.predefinedType ? { type: "entity", name: facet.name, predefinedType: facet.predefinedType } : { type: "entity", name: facet.name });
+  } else if (facet.type === "partOf" && facet.entity && next.type === "entity") {
+    next.name = structuredClone(facet.entity.name);
+    if (facet.entity.predefinedType) next.predefinedType = structuredClone(facet.entity.predefinedType);
+  }
+  return next;
+}
+
+/**
  * Validate the model (parsed from `bytes`) against an IDS document.
  * `fileName` is used as the report's modelId. `onProgress` surfaces validator
  * progress so the UI can show a bar on large documents.
