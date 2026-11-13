@@ -91,11 +91,15 @@ export const en: Dict = {
     measureLength: "Distance",
     measurePoint: "Point",
     measureArea: "Area",
+    measureFaces: "Distance between faces",
+    measureFacesTitle: "Click a face, then another: distance between the planes (perpendicular) and the angle between them",
     snapTo: "Snap to:",
     snapVertex: "Vertex",
     snapMid: "Midpoint",
     snapEdge: "Edge",
     snapFace: "Face",
+    snapPerp: "Perpendicular (distance)",
+    snapPerpTitle: "Distance: the 2nd point snaps to the foot of the perpendicular from the 1st point onto the face under the cursor",
     clearMeasures: "Clear measurements",
     section: "Section",
     sectionPlane: "Section plane",
@@ -590,6 +594,8 @@ export const en: Dict = {
   measure: {
     areaPerimeter: "Area {area}\nPerimeter {per}",
     dragSection: "Drag to move the section",
+    facesParallel: "⊥ {d} (parallel faces)",
+    facesAngle: "⊥ {d}\nfaces at {a}°",
   },
   help: {
     title: "User guide",
@@ -613,7 +619,7 @@ export const en: Dict = {
       "• Editing is available on the primary model ★. Select an element and press E (or the pencil button).\n• Change IFC attributes and existing property/quantity values.\n• Add a standard buildingSMART property set (Pset_) or a custom one.\n• “Download” writes a non-destructive edited .ifc (the rest of the file stays unchanged).",
     toolsTitle: "Tools: measure, section, visibility",
     toolsBody:
-      "• Measure: distance, point, or area, with snapping to vertex/midpoint/edge/face.\n• Section: double-click a face to create a clip plane; move it with the handle, adjust the size, or flip the kept side.\n• Visibility: hide (H), isolate (L), show all (A); frame the selection with C.",
+      "• Measure: distance, point, or area, with snapping to vertex/midpoint/edge/face.\n• Perpendicular (snap option): in Distance, the 2nd point lands on the foot of the perpendicular from the 1st point onto the face under the cursor (⊥ marker) — the shortest distance from a point to that face's plane.\n• Distance between faces: click two faces; parallel faces give the distance between their planes, otherwise the perpendicular distance plus the angle between them. The dashed line shows the plane the perpendicular lands on (it may extend beyond the face).\n• Section: double-click a face to create a clip plane; move it with the handle, adjust the size, or flip the kept side.\n• Visibility: hide (H), isolate (L), show all (A); frame the selection with C.",
     federationTitle: "Model federation",
     federationBody:
       "• The “Models” panel loads multiple IFC files into one scene.\n• The first model (★) sets the origin; the rest are placed by georeferencing.\n• “Color by model” gives each model a distinct color to tell them apart in the scene.\n• The tree, selection, and table work across all models; editing, the Globe, IDS, and BCF apply to the primary model only.",
@@ -680,7 +686,7 @@ export const en: Dict = {
     canvasBody:
       "Orbit, pan and zoom the model with the mouse. Select an element to see its properties; the navigation cube and the view bar take you straight to the standard views.",
     measureTitle: "Measuring",
-    measureBody: "Distances, points and areas, with snapping to vertices, midpoints, edges and faces. Shortcut: M.",
+    measureBody: "Distances, points, areas and distances between faces, with snapping to vertices, midpoints, edges, faces, or perpendicular to a face. Shortcut: M.",
     sectionTitle: "Sections",
     sectionBody:
       "Enable the section plane and double-click a face to cut the model; position and size are adjusted from here. Shortcut: S.",

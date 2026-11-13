@@ -6,7 +6,7 @@ const A = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "
 
 export type ToolKind =
   | "section" | "ids" | "bcf" | "table" | "point" | "views" | "measure"
-  | "distance" | "filter" | "analytics" | "clash" | "info";
+  | "distance" | "faces" | "filter" | "analytics" | "clash" | "info";
 
 /** Toolbar/dock icons. A dock header uses the same kind as its toolbar button. */
 export function ToolIcon({ kind }: { kind: ToolKind }) {
@@ -14,6 +14,8 @@ export function ToolIcon({ kind }: { kind: ToolKind }) {
     case "filter": return <svg {...A}><path d="M3 4h18l-7 8.5V20l-4 1v-8.5z" /></svg>;
     case "measure": return <svg {...A}><path d="M15.3 2.3 2.3 15.3l6.4 6.4L21.7 8.7z" /><path d="M7 7l1.6 1.6M10 4l1.6 1.6M4 10l1.6 1.6M13 13l1.6 1.6" /></svg>;
     case "distance": return <svg {...A}><path d="M3 12h18" /><path d="M6 8l-3 4 3 4M18 8l3 4-3 4" /></svg>;
+    // Two parallel faces with the perpendicular distance between them.
+    case "faces": return <svg {...A}><path d="M4 3v18M20 3v18" /><path d="M4 12h16" /><path d="M8 9l-4 3 4 3M16 9l4 3-4 3" /></svg>;
     case "views": return <svg {...A}><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>;
     case "section": return <svg {...A}><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" /></svg>;
     case "ids": return <svg {...A}><path d="M9 3h6v3H9zM7 4.5H5a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5.5a1 1 0 0 0-1-1h-2" /><path d="M8.5 13.5l2.2 2.2 4.3-4.6" /></svg>;

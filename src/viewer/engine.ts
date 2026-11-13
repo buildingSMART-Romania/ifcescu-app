@@ -685,6 +685,17 @@ export class ViewerEngine {
     });
   }
 
+  /** The face under the cursor as a plane: hit point + unit normal (renderer
+   *  world, like snap points). Null on a miss or a degenerate normal. */
+  raycastFace(clientX: number, clientY: number): { point: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } | null {
+    const rc = this.raycast(clientX, clientY);
+    if (!rc) return null;
+    const { point: p, normal: n } = rc.intersection;
+    const L = Math.hypot(n.x, n.y, n.z);
+    if (!L) return null;
+    return { point: { x: p.x, y: p.y, z: p.z }, normal: { x: n.x / L, y: n.y / L, z: n.z / L } };
+  }
+
   /**
    * Custom snapping (the renderer's built-in snap is unreliable on batched
    * geometry): raycast for the hit element, then find the nearest welded vertex

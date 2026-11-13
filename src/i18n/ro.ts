@@ -95,11 +95,15 @@ export const ro = {
     measureLength: "Distanță",
     measurePoint: "Punct",
     measureArea: "Suprafață",
+    measureFaces: "Distanță între fețe",
+    measureFacesTitle: "Click pe o față, apoi pe alta: distanța dintre plane (perpendiculară) și unghiul dintre ele",
     snapTo: "Snap la:",
     snapVertex: "Vârf",
     snapMid: "Mijloc",
     snapEdge: "Muchie",
     snapFace: "Față",
+    snapPerp: "Perpendicular (distanță)",
+    snapPerpTitle: "Distanță: al 2-lea punct sare la piciorul perpendicularei din primul punct pe fața de sub cursor",
     clearMeasures: "Șterge măsurătorile",
     section: "Secțiune",
     sectionPlane: "Plan de secțiune",
@@ -594,6 +598,8 @@ export const ro = {
   measure: {
     areaPerimeter: "Suprafață {area}\nPerimetru {per}",
     dragSection: "Trage pentru a muta secțiunea",
+    facesParallel: "⊥ {d} (fețe paralele)",
+    facesAngle: "⊥ {d}\nfețe la {a}°",
   },
   help: {
     title: "Ghid de utilizare",
@@ -617,7 +623,7 @@ export const ro = {
       "• Editarea e disponibilă pe modelul principal ★. Selectați un element și apăsați E (sau butonul creion).\n• Modificați atribute IFC și valori de proprietăți/cantități existente.\n• Adăugați un set de proprietăți standard buildingSMART (Pset_) sau unul personalizat.\n• „Descarcă” scrie un .ifc editat ne-distructiv (restul fișierului rămâne neschimbat).",
     toolsTitle: "Unelte: măsurare, secțiune, vizibilitate",
     toolsBody:
-      "• Măsurare: distanță, punct sau arie, cu snap la vârf/mijloc/muchie/față.\n• Secțiune: dublu-click pe o față creează un plan de tăiere; mutați-l cu mânerul, ajustați dimensiunea sau inversați partea păstrată.\n• Vizibilitate: ascunde (H), izolează (L), afișează tot (A); încadrează selecția cu C.",
+      "• Măsurare: distanță, punct sau arie, cu snap la vârf/mijloc/muchie/față.\n• Perpendicular (opțiune de snap): la Distanță, al 2-lea punct cade în piciorul perpendicularei din primul punct pe fața de sub cursor (marcaj ⊥) — cea mai scurtă distanță de la un punct la planul acelei fețe.\n• Distanță între fețe: click pe două fețe; la fețe paralele primiți distanța dintre plane, altfel distanța perpendiculară și unghiul dintre ele. Linia punctată arată planul pe care cade perpendiculara (poate ieși din față).\n• Secțiune: dublu-click pe o față creează un plan de tăiere; mutați-l cu mânerul, ajustați dimensiunea sau inversați partea păstrată.\n• Vizibilitate: ascunde (H), izolează (L), afișează tot (A); încadrează selecția cu C.",
     federationTitle: "Federare modele",
     federationBody:
       "• Panoul „Modele” încarcă mai multe fișiere IFC în aceeași scenă.\n• Primul model (★) dă originea; celelalte sunt plasate după georeferențiere.\n• „Colorează după model” dă fiecărui model o culoare distinctă pentru a-l deosebi în scenă.\n• Arborele, selecția și tabelul funcționează pe toate modelele; editarea, Globul, IDS și BCF doar pe modelul principal.",
@@ -684,7 +690,7 @@ export const ro = {
     canvasBody:
       "Rotește, panoramează și apropie modelul cu mouse-ul. Selectează un element ca să-i vezi proprietățile; cubul de navigație și bara de vederi te duc rapid la vederile standard.",
     measureTitle: "Măsurare",
-    measureBody: "Distanțe, puncte și suprafețe, cu snap la vârfuri, mijloace, muchii și fețe. Scurtătură: M.",
+    measureBody: "Distanțe, puncte, suprafețe și distanțe între fețe, cu snap la vârfuri, mijloace, muchii, fețe sau perpendicular pe o față. Scurtătură: M.",
     sectionTitle: "Secțiuni",
     sectionBody:
       "Activează planul de secțiune și dă dublu-click pe o față pentru a tăia modelul; poziția și dimensiunea se reglează de aici. Scurtătură: S.",

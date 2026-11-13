@@ -202,6 +202,15 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const measureModeRef = useRef(measureMode);
   measureModeRef.current = measureMode;
   const [snapOpts, setSnapOpts] = useState({ ...settings.viewer.snap });
+  // Distance: snap the 2nd point to the perpendicular foot on the face (per session).
+  const [perpSnap, setPerpSnap] = useState(false);
+  const perpSnapRef = useRef(perpSnap); // read when the tool is (re)created
+  perpSnapRef.current = perpSnap;
+  const togglePerpSnap = () =>
+    setPerpSnap((on) => {
+      measureRef.current?.setPerpendicular(!on);
+      return !on;
+    });
   const toggleSnap = (k: "vertex" | "midpoint" | "edge" | "face") =>
     setSnapOpts((s) => {
       const next = { ...s, [k]: !s[k] };
@@ -420,6 +429,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
         measureRef.current = new MeasureTool(engine, host);
         measureRef.current.setGeoref(georefRef.current);
+        measureRef.current.setPerpendicular(perpSnapRef.current);
         engine.onSectionMove = (pos) => setSecPos(pos); // keep the slider in sync with the drag handle
         wireEvents(host);
 
@@ -1343,6 +1353,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             <button className={"vmenu-item" + (measureMode === "length" ? " active" : "")} onClick={() => chooseMeasure("length")}><span className="ic"><ToolIcon kind="distance" /></span> {t("viewer.measureLength")}</button>
             <button className={"vmenu-item" + (measureMode === "point" ? " active" : "")} onClick={() => chooseMeasure("point")}><span className="ic"><ToolIcon kind="point" /></span> {t("viewer.measurePoint")}</button>
             <button className={"vmenu-item" + (measureMode === "area" ? " active" : "")} onClick={() => chooseMeasure("area")}><span className="ic"><UiIcon kind="area" /></span> {t("viewer.measureArea")}</button>
+            <button className={"vmenu-item" + (measureMode === "faces" ? " active" : "")} onClick={() => chooseMeasure("faces")} title={t("viewer.measureFacesTitle")}><span className="ic"><ToolIcon kind="faces" /></span> {t("viewer.measureFaces")}</button>
             <div className="vmenu-sep" />
             <div onClick={(e) => e.stopPropagation()} style={{ padding: "4px 12px", fontSize: 12 }}>
               <div style={{ opacity: 0.7, margin: "2px 0 4px" }}>{t("viewer.snapTo")}</div>
@@ -1351,6 +1362,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
                   <input type="checkbox" checked={snapOpts[k]} onChange={() => toggleSnap(k)} /> {lbl}
                 </label>
               ))}
+              <label style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", cursor: "pointer" }} title={t("viewer.snapPerpTitle")}>
+                <input type="checkbox" checked={perpSnap} onChange={togglePerpSnap} /> {t("viewer.snapPerp")}
+              </label>
             </div>
             <div className="vmenu-sep" />
             <button className="vmenu-item danger" onClick={() => measureRef.current?.clearAll()}><span className="ic"><UiIcon kind="trash" /></span><span>{t("viewer.clearMeasures")}</span></button>
