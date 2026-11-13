@@ -38,6 +38,18 @@ describe("MeasureTool.undo", () => {
     expect(undoAll(m)).toBe(3);
   });
 
+  it("measurements round-trip through get/setMeasurements (session save/restore)", () => {
+    const m = tool("length");
+    click(m, 1); click(m, 2);
+    const saved = m.getMeasurements();
+    expect(saved).toHaveLength(1);
+    const back = tool("length");
+    back.setMeasurements(saved);
+    expect(back.getMeasurements()).toEqual(saved);
+    expect(back.undo()).toBe(true); // restored measurements can be undone too
+    expect(back.canUndo()).toBe(false);
+  });
+
   it("faces mode: undo drops the 1st picked face, so the next click starts over", () => {
     const m = tool("faces");
     click(m, 1); // 1st face

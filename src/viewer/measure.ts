@@ -146,6 +146,18 @@ export class MeasureTool {
     return this.selected != null;
   }
 
+  /** Finished measurements, for saving the session (renderer world coords —
+   *  stable across reloads of the same models). */
+  getMeasurements(): Measurement[] {
+    return this.done.map((m) => structuredClone(m));
+  }
+
+  /** Replace the finished measurements (session restore). */
+  setMeasurements(list: Measurement[]): void {
+    this.done = list.map((m) => structuredClone(m));
+    this.selected = null;
+  }
+
   /** Something for undo() to remove. */
   canUndo(): boolean {
     return this.pending.length > 0 || this.done.length > 0;

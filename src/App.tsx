@@ -12,7 +12,8 @@ import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { TourOverlay } from "./components/tour/TourOverlay";
 import type { IDSValidationReport } from "./ifc/ids";
-import type { BCFProject } from "./ifc/bcf";
+import { readBcfFile, writeBCF, type BCFProject } from "./ifc/bcf";
+import { loadSession, saveModels, saveState, clearSession, type SessionState } from "./session/store";
 
 // Cesium is ~3 MB+ — code-split it so the initial load doesn't pay for the globe
 // until the user actually opens the Glob 3D tab.
@@ -73,6 +74,9 @@ export default function App() {
   // Federated models added in the 3D viewer (beyond the primary `loaded` one).
   const [extraModels, setExtraModels] = useState<ExtraModel[]>([]);
   const extraSeq = useRef(0);
+  // Saved IDS/camera/measurements to re-apply once the restored models are up
+  // (handed to the Viewer, cleared when it has applied them).
+  const [restoreState, setRestoreState] = useState<SessionState | null>(null);
   // Generation counter for async load paths: bumped by every primary load so a
   // slow, superseded parse can't overwrite the state of a newer one (e.g. drop
   // big file A, then small file B — A must not replace B when it finally resolves).
@@ -84,8 +88,13 @@ export default function App() {
       return x;
     });
 
-  const onFile = async (file: File) => {
+  const onFile = async (file: File, opts?: { restoring?: boolean }) => {
     const gen = ++loadSeq.current; // supersedes any in-flight load
+    // A new model starts a new session: its IDS/BCF/camera/measurements no longer apply.
+    if (!opts?.restoring) {
+      setRestoreState(null);
+      void clearSession(true);
+    }
     setError(null);
     setBusy(true);
     setLoaded(null);
@@ -138,6 +147,48 @@ export default function App() {
   };
   const onRemoveModel = (id: string) => setExtraModels((p) => p.filter((m) => m.id !== id));
 
+  // --- session: survive a page refresh (src/session/store.ts) -----------------
+  // Save the open models whenever the set changes (bytes are rewritten only then).
+  useEffect(() => {
+    if (!loaded) return;
+    void saveModels([
+      { fileName: loaded.fileName, bytes: loaded.bytes, primary: true },
+      ...extraModels.map((m) => ({ fileName: m.fileName, bytes: m.bytes, primary: false })),
+    ]);
+  }, [loaded, extraModels]);
+
+  // Save the BCF project as a .bcfzip whenever it changes. Not while a restore
+  // is pending: the BCF isn't back yet and saving "none" would wipe it.
+  useEffect(() => {
+    if (!loaded || restoreState) return;
+    let cancelled = false;
+    (async () => {
+      const bcf = bcfProject ? await writeBCF(bcfProject).catch(() => undefined) : undefined;
+      if (!cancelled) void saveState({ bcf });
+    })();
+    return () => { cancelled = true; };
+  }, [bcfProject, loaded, restoreState]);
+
+  // Close project: forget the session and go back to the upload screen.
+  const closeProject = () => {
+    ++loadSeq.current; // abandon any in-flight load/restore
+    void clearSession();
+    setRestoreState(null);
+    setLoaded(null);
+    setGeoref(null);
+    setFavorites(new Set());
+    setIdsReport(null);
+    setBcfProject(null);
+    setExtraModels([]);
+    setChangeCount(0);
+    setGlobeMode(null);
+    if (globeOpened) import("./geo/extractGeometry").then((m) => m.clearMeshCache()).catch(() => {});
+    setGlobeOpened(false);
+    setTab("view");
+    setError(null);
+    setBusy(false);
+  };
+
   // Download the primary model with its edits applied (non-destructive export).
   const downloadEdited = () => {
     if (!loaded) return;
@@ -177,6 +228,29 @@ export default function App() {
   // viewer, skipping the upload screen. Not surfaced anywhere in the UI — it's a
   // link-only entry point. Restricted to a bare .ifc filename under public/samples
   // (no path traversal, no cross-origin fetch).
+  // Without a ?model= link: reopen the last session (models, then IDS/BCF/camera/
+  // measurements once the Viewer has them up).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("model")) return;
+    let cancelled = false;
+    const gen = loadSeq.current; // a load the user starts meanwhile wins
+    (async () => {
+      const s = await loadSession();
+      if (!s || cancelled || gen !== loadSeq.current) return;
+      const primary = s.models.find((m) => m.primary)!;
+      // Read the BCF first, so it's back right after the model (onFile resets it).
+      const bcf = s.state.bcf ? await readBcfFile(s.state.bcf).catch(() => null) : null;
+      if (cancelled || gen !== loadSeq.current) return;
+      setRestoreState(s.state);
+      await onFile(new File([primary.bytes as BlobPart], primary.fileName, { type: "application/x-step" }), { restoring: true });
+      if (cancelled || gen + 1 !== loadSeq.current) return; // onFile bumped it once; anything more = user took over
+      setExtraModels(s.models.filter((m) => !m.primary).map((m) => ({ id: `extra-${++extraSeq.current}`, bytes: m.bytes, fileName: m.fileName })));
+      if (bcf) setBcfProject(bcf);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const name = new URLSearchParams(window.location.search).get("model");
     if (!name) return;
@@ -254,6 +328,12 @@ export default function App() {
             </button>
           )}
           {loaded && <UploadPanel onFile={onFile} variant="button" />}
+          {loaded && (
+            <button className="toggle" onClick={closeProject} title={t("app.closeProjectTitle")}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: -3 }}><path d="M18 6L6 18M6 6l12 12" /></svg>
+              {t("app.closeProject")}
+            </button>
+          )}
           <button className="help-toggle" data-tour="help" onClick={() => setShowHelp(true)} title={t("help.buttonTitle")} aria-label={t("help.buttonTitle")}>
             ?
           </button>
@@ -329,6 +409,8 @@ export default function App() {
                 onAddModel={onAddModel}
                 onRemoveModel={onRemoveModel}
                 onPlacementMode={setGlobeMode}
+                restore={restoreState}
+                onRestored={() => setRestoreState(null)}
               />
             </div>
             {globeOpened && (

@@ -22,8 +22,9 @@ import { ModelsPanel } from "./ModelsPanel";
 import { NavCube } from "./NavCube";
 import { ViewBar } from "./ViewBar";
 import { groupColor, type PivotConfig, type PivotModel, type Rgba } from "../viewer/pivot";
-import { runIdsValidation, hasIdsContent } from "../ifc/ids";
+import { runIdsValidation, hasIdsContent, parseIdsXml, serializeIds } from "../ifc/ids";
 import type { IDSValidationReport, IDSDocument } from "../ifc/ids";
+import { saveState, type SessionState } from "../session/store";
 import { DEFAULT_FILTER_RULES, type FilterRule } from "./filterRules";
 // Lazy so Recharts only loads when the analytics panel is opened.
 const AnalyticsPanel = lazy(() => import("./analytics/AnalyticsPanel"));
@@ -80,6 +81,9 @@ interface Props {
   onRemoveModel: (id: string) => void;
   /** Report whether the primary model can be placed on the globe (drives the Glob 3D button). */
   onPlacementMode?: (mode: PlacementMode) => void;
+  /** Saved session to re-apply once the models are up (IDS, camera, measurements). */
+  restore?: SessionState | null;
+  onRestored?: () => void;
 }
 
 export interface ViewerModelInput {
@@ -148,7 +152,7 @@ function treeMeasureCtx(): CanvasRenderingContext2D | null {
   return _treeMeasureCtx;
 }
 
-export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, favorites, onToggleFavorite, bcfProject, onBcfProject, idsReport, onIdsReport, models, onAddModel, onRemoveModel, onPlacementMode }: Props) {
+export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, favorites, onToggleFavorite, bcfProject, onBcfProject, idsReport, onIdsReport, models, onAddModel, onRemoveModel, onPlacementMode, restore, onRestored }: Props) {
   const { t, lang } = useI18n();
   const { settings, update } = useSettings();
   const analyticsEnabled = settings.experimental.analytics;
@@ -280,9 +284,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   dockRef.current = dock;
   const [idsEditorOpen, setIdsEditorOpen] = useState(false);
   // The "active" authored/uploaded IDS document — the single source of truth for
-  // what the editor edits and whether the panel button reads "Edit IDS". Kept in
-  // memory only: it survives closing the editor within a session, but closing or
-  // reloading the app starts fresh (Export .ids is the way to keep one for good).
+  // what the editor edits and whether the panel button reads "Edit IDS". Saved
+  // with the session (as IDS XML), so a page refresh brings it back; Close
+  // project forgets it (Export .ids is the way to keep one for good).
   const [activeIdsDoc, setActiveIdsDoc] = useState<IDSDocument | null>(null);
   // Model-info panel is open by default on load; it can be closed (×) or toggled
   // from the toolbar. A selection still takes over the right panel with props.
@@ -565,6 +569,63 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [models, ready]);
+
+  // --- session restore + save (src/session/store.ts) ------------------------
+  // Re-apply the saved IDS, camera and measurements once every model is in the
+  // scene. Until then nothing is saved, so a quick second refresh can't wipe the
+  // session with the still-empty state.
+  useEffect(() => {
+    const eng = engineRef.current;
+    if (!restore || !eng || !ready) return;
+    if (!models.every((m) => loadedModelIdsRef.current.has(m.id))) return;
+    if (restore.camera) eng.applyCameraState(restore.camera);
+    if (restore.measures) measureRef.current?.setMeasurements(restore.measures);
+    if (restore.idsXml) {
+      try {
+        const doc = parseIdsXml(restore.idsXml);
+        setActiveIdsDoc(doc);
+        if (restore.idsValidated) runIdsValidation(bytes, doc, fileName).then((r) => onIdsReport?.(r)).catch(() => {});
+      } catch { /* an unreadable saved IDS is just dropped */ }
+    }
+    onRestored?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restore, ready, modelsVersion]);
+
+  // The IDS document and whether it was validated.
+  useEffect(() => {
+    if (restore || !ready) return;
+    let idsXml: string | undefined;
+    if (hasIdsContent(activeIdsDoc)) {
+      try { idsXml = serializeIds(activeIdsDoc!); } catch { idsXml = undefined; }
+    }
+    void saveState({ idsXml, idsValidated: idsReport ? true : undefined });
+  }, [activeIdsDoc, idsReport, restore, ready]);
+
+  // Camera + measurements: saved when they change (checked every 2 s) and when
+  // the page is hidden/closed (refresh).
+  useEffect(() => {
+    if (restore || !ready) return;
+    let last = "";
+    const save = () => {
+      const eng = engineRef.current;
+      if (!eng) return;
+      const camera = eng.getCameraState();
+      const measures = measureRef.current?.getMeasurements() ?? [];
+      const key = JSON.stringify([camera, measures]);
+      if (key === last) return;
+      last = key;
+      void saveState({ camera, measures: measures.length ? measures : undefined });
+    };
+    const id = window.setInterval(save, 2000);
+    const onHide = () => { if (document.visibilityState === "hidden") save(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", save);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [restore, ready]);
 
   // Rebuild the per-model forests when the language changes so the localised
   // tree labels (e.g. the material buckets) follow the switch. Skips the initial

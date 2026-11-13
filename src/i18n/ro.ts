@@ -28,6 +28,8 @@ export const ro = {
     globeDisabledTitle: "Modelul trebuie georeferențiat în EPSG:3844 (Stereo 70) sau să aibă coordonate reale pentru a fi afișat pe glob.",
     download: "Descarcă",
     downloadTitle: "Descarcă IFC-ul cu modificările aplicate",
+    closeProject: "Închide proiectul",
+    closeProjectTitle: "Închide modelele și uită sesiunea salvată (altfel un refresh al paginii o redeschide)",
     editedSuffix: "editat",
     processing: "Se procesează fișierul…",
     processingHint: "Se parsează modelul și se pregătește geometria. La fișiere mari poate dura câteva secunde.",
