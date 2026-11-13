@@ -24,6 +24,8 @@ export const en: Dict = {
     globeDisabledTitle: "The model must be georeferenced in EPSG:3844 (Stereo 70) or have real coordinates to be shown on the globe.",
     download: "Download",
     downloadTitle: "Download the IFC with your edits applied",
+    closeProject: "Close project",
+    closeProjectTitle: "Close the models and forget the saved session (otherwise a page refresh reopens it)",
     editedSuffix: "edited",
     processing: "Processing file…",
     processingHint: "Parsing the model and preparing geometry. This can take a few seconds for large files.",
