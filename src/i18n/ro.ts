@@ -105,6 +105,8 @@ export const ro = {
     snapPerp: "Perpendicular (distanță)",
     snapPerpTitle: "Distanță: al 2-lea punct sare la piciorul perpendicularei din primul punct pe fața de sub cursor",
     clearMeasures: "Șterge măsurătorile",
+    undoMeasure: "Anulează ultima măsurătoare",
+    undoMeasureTitle: "Elimină ultimul punct al măsurătorii în curs, altfel ultima măsurătoare. Repetă pentru a merge mai înapoi.",
     section: "Secțiune",
     sectionPlane: "Plan de secțiune",
     clearSections: "Șterge secțiunile",
@@ -675,6 +677,7 @@ export const ro = {
       search: "Caută în arbore",
       escape: "Anulează comanda activă",
       del: "Șterge măsurătoarea selectată",
+      undoMeasure: "Anulează ultima măsurătoare (sau ultimul punct); repetă pentru a merge mai înapoi",
     },
   },
   tour: {

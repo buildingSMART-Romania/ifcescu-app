@@ -101,6 +101,8 @@ export const en: Dict = {
     snapPerp: "Perpendicular (distance)",
     snapPerpTitle: "Distance: the 2nd point snaps to the foot of the perpendicular from the 1st point onto the face under the cursor",
     clearMeasures: "Clear measurements",
+    undoMeasure: "Undo last measurement",
+    undoMeasureTitle: "Removes the last point of the measurement in progress, otherwise the last measurement. Repeat to go further back.",
     section: "Section",
     sectionPlane: "Section plane",
     clearSections: "Clear sections",
@@ -671,6 +673,7 @@ export const en: Dict = {
       search: "Search the tree",
       escape: "Cancel the active command",
       del: "Delete the selected measurement",
+      undoMeasure: "Undo the last measurement (or point); repeat to go further back",
     },
   },
   tour: {

@@ -52,6 +52,7 @@ const SHORTCUTS: { keys: string; descKey: I18nKey }[] = [
   { keys: "/", descKey: "help.shortcut.search" },
   { keys: "Esc", descKey: "help.shortcut.escape" },
   { keys: "Del", descKey: "help.shortcut.del" },
+  { keys: "Ctrl+Z", descKey: "help.shortcut.undoMeasure" },
 ];
 
 /** On-demand user guide. Reuses the shared Modal (Esc/backdrop/× close). */

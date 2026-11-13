@@ -145,6 +145,29 @@ export class MeasureTool {
   hasSelection(): boolean {
     return this.selected != null;
   }
+
+  /** Something for undo() to remove. */
+  canUndo(): boolean {
+    return this.pending.length > 0 || this.done.length > 0;
+  }
+
+  /**
+   * Step back once: a measurement in progress loses its last point (the 1st face
+   * in faces mode); otherwise the last finished measurement is removed. Repeat to
+   * keep going back. Returns false when there was nothing to undo.
+   */
+  undo(): boolean {
+    if (this.pending.length) {
+      this.pending.pop();
+      if (this.mode === "faces") this.firstFace = null;
+      this.preview = null;
+      return true;
+    }
+    if (!this.done.length) return false;
+    this.done.pop();
+    if (this.selected != null && this.selected >= this.done.length) this.selected = null;
+    return true;
+  }
   clearSelection(): void {
     this.selected = null;
   }
