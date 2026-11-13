@@ -396,6 +396,7 @@ export const ro = {
     requirements: "Cerințe (ce trebuie respectat)",
     noRequirements: "Nicio cerință încă.",
     addFacet: "+ Adaugă fațetă…",
+    changeFacetType: "Schimbă tipul fațetei (valorile compatibile se păstrează)",
     facet: {
       entity: "Entitate",
       attribute: "Atribut",
