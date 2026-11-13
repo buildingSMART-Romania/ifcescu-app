@@ -592,6 +592,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      // Ctrl/Cmd+Z: undo the last measurement (or point of the one in progress),
+      // as many times as there is something to undo.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "z" || e.key === "Z")) {
+        if (!document.querySelector(".modal-backdrop") && measureRef.current?.undo()) e.preventDefault();
+        return;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Don't let viewer shortcuts fire behind an open modal (Settings/Help/Filter/IDS editor).
       if (document.querySelector(".modal-backdrop")) return;
@@ -1370,6 +1376,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               </label>
             </div>
             <div className="vmenu-sep" />
+            <button className="vmenu-item" onClick={(e) => { e.stopPropagation(); measureRef.current?.undo(); }} title={t("viewer.undoMeasureTitle")}>
+              <span className="ic"><UiIcon kind="undo" /></span><span>{t("viewer.undoMeasure")}</span><span className="vmenu-key">Ctrl+Z</span>
+            </button>
             <button className="vmenu-item danger" onClick={() => measureRef.current?.clearAll()}><span className="ic"><UiIcon kind="trash" /></span><span>{t("viewer.clearMeasures")}</span></button>
           </Dropdown>
 

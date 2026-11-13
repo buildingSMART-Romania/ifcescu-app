@@ -1,6 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { modelToStereo70, distToSeg, pointInPoly, polygonArea, footOnPlane, planeAngleDeg, facesMeasurement, PARALLEL_DEG } from "../src/viewer/measure";
+import { modelToStereo70, distToSeg, pointInPoly, polygonArea, footOnPlane, planeAngleDeg, facesMeasurement, PARALLEL_DEG, MeasureTool } from "../src/viewer/measure";
 import type { GeorefInfo } from "../src/ifc/editor";
+
+describe("MeasureTool.undo", () => {
+  // Just enough DOM + engine for the tool's state machine (no rendering here:
+  // requestAnimationFrame never fires).
+  const el = () => ({ setAttribute() {}, appendChild() {}, style: {} });
+  (globalThis as any).document ??= { createElementNS: el, createElement: el };
+  (globalThis as any).requestAnimationFrame ??= () => 0;
+  (globalThis as any).cancelAnimationFrame ??= () => {};
+  const engine = {
+    snap: (x: number, y: number) => ({ point: { x, y, z: 0 }, type: "vertex" }),
+    raycastFace: (x: number, y: number) => ({ point: { x, y, z: 0 }, normal: { x: 0, y: 0, z: 1 } }),
+  };
+  const tool = (mode: "length" | "area" | "faces") => {
+    const m = new MeasureTool(engine as any, el() as any);
+    m.setMode(mode);
+    return m;
+  };
+  const click = (m: MeasureTool, x: number) => m.onClick({ clientX: x, clientY: x } as MouseEvent);
+  const undoAll = (m: MeasureTool) => { let n = 0; while (m.undo()) n++; return n; };
+
+  it("removes the point in progress first, then finished measurements, one per call", () => {
+    const m = tool("length");
+    click(m, 1); click(m, 2); // measurement 1
+    click(m, 3); click(m, 4); // measurement 2
+    click(m, 5); // 1st point of a 3rd, in progress
+    expect(m.canUndo()).toBe(true);
+    expect(undoAll(m)).toBe(3); // the pending point, then measurement 2, then 1
+    expect(m.canUndo()).toBe(false);
+    expect(m.undo()).toBe(false);
+  });
+
+  it("steps back through an area's points one by one", () => {
+    const m = tool("area");
+    click(m, 1); click(m, 2); click(m, 3);
+    expect(undoAll(m)).toBe(3);
+  });
+
+  it("faces mode: undo drops the 1st picked face, so the next click starts over", () => {
+    const m = tool("faces");
+    click(m, 1); // 1st face
+    expect(m.undo()).toBe(true); // dropped
+    click(m, 2); click(m, 3); // a full measurement again (not finishing the old one)
+    expect(undoAll(m)).toBe(1);
+  });
+});
 
 const len = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
