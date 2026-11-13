@@ -39,6 +39,7 @@ const PAN_SENS = 0.7;
 const ZOOM_SENS = 0.7;
 const OUTLINE_COLOR = "#bcf124"; // lime selection outline (matches the old viewer)
 const SNAP_PX = 14; // screen-space snap radius for measurement
+const DRAG_PX = 4; // pointer travel beyond which a press is an orbit/pan, not a click
 // Only emit a shared edge when its two faces meet at a sharp angle (feature edge);
 // 50° keeps building corners and the silhouette but drops the dense triangulation
 // of tessellated/terrain surfaces. Boundary edges (1 face) are always emitted.
@@ -122,6 +123,9 @@ export class ViewerEngine {
   private lastT = 0;
   private disposed = false;
   private detach: (() => void) | null = null;
+  /** The last press moved the camera (orbit/pan drag). The browser still fires a
+   *  `click` on release, so click handlers check this to not pick/measure then. */
+  lastPressWasDrag = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
@@ -622,15 +626,19 @@ export class ViewerEngine {
     const cam = this.renderer.getCamera();
     let btn = -1;
     let lx = 0, ly = 0;
+    let downX = 0, downY = 0;
 
     const onDown = (e: PointerEvent) => {
       btn = e.button;
       if (btn === 0) this.repinPivot();
       lx = e.clientX; ly = e.clientY;
+      downX = e.clientX; downY = e.clientY;
+      this.lastPressWasDrag = false;
       cv.setPointerCapture(e.pointerId);
     };
     const onMove = (e: PointerEvent) => {
       if (btn < 0) return;
+      if (!this.lastPressWasDrag && Math.hypot(e.clientX - downX, e.clientY - downY) > DRAG_PX) this.lastPressWasDrag = true;
       const dx = e.clientX - lx, dy = e.clientY - ly;
       lx = e.clientX; ly = e.clientY;
       if (btn === 0) cam.orbit(dx * this.navSens.orbit, dy * this.navSens.orbit, false);

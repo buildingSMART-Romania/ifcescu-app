@@ -805,6 +805,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       // gate on the target instead. The SVG overlays are pointer-events:none, so
       // genuine 3D clicks still land on the canvas.
       if (ev.target !== canvasRef.current) return;
+      // Releasing after an orbit/pan drag still fires `click`: don't pick or
+      // measure then (it would land on whatever is under the cursor).
+      if (engineRef.current?.lastPressWasDrag) return;
       const measure = measureRef.current;
       if (measure && measure.mode !== "none") return measure.onClick(ev);
       if (sectionRef.current) return;
