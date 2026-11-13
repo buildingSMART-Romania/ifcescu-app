@@ -8,13 +8,35 @@ import { t } from "../i18n";
 import { formatLength, formatArea, coordDecimals } from "../settings/format";
 import { ovc } from "./overlayColors";
 
-export type MeasureMode = "none" | "length" | "point" | "area";
+export type MeasureMode = "none" | "length" | "point" | "area" | "faces";
 
 interface V3 {
   x: number;
   y: number;
   z: number;
 }
+
+/** A face as an infinite plane: a point on it + its unit normal (renderer world). */
+export interface Plane {
+  point: V3;
+  normal: V3;
+}
+
+/** A finished (or previewed) measurement. `ext` is the face point whose plane the
+ *  perpendicular lands on — drawn dashed to the foot, which may fall outside the
+ *  face itself. `angle` (faces mode) is the angle between the two planes, in °. */
+export interface Measurement {
+  mode: MeasureMode;
+  pts: V3[];
+  perp?: boolean;
+  ext?: V3;
+  angle?: number;
+}
+
+type HoverType = SnapType | "perpendicular";
+
+/** Below this angle two faces count as parallel (distance between planes). */
+export const PARALLEL_DEG = 1;
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -35,8 +57,13 @@ export class MeasureTool {
   private georef: GeorefInfo | null = null;
   private pending: V3[] = []; // committed points of the in-progress measurement (renderer world)
   private hover: V3 | null = null;
-  private hoverType: SnapType = "face";
-  private done: { mode: MeasureMode; pts: V3[] }[] = [];
+  private hoverType: HoverType = "face";
+  private done: Measurement[] = [];
+  /** Distance mode: the 2nd point snaps to the foot of the perpendicular from
+   *  the 1st point onto the face under the cursor. */
+  perpendicular = false;
+  private firstFace: Plane | null = null; // faces mode: the 1st picked face
+  private preview: Measurement | null = null; // perpendicular / faces preview
   private selected: number | null = null; // index into `done` of the picked measurement
   private svg: SVGSVGElement;
   private labels: HTMLDivElement;
@@ -73,6 +100,13 @@ export class MeasureTool {
     this.pending = [];
     this.hover = null;
     this.selected = null;
+    this.firstFace = null;
+    this.preview = null;
+  }
+
+  setPerpendicular(on: boolean): void {
+    this.perpendicular = on;
+    this.preview = null;
   }
 
   /** Hit-test a screen point against finished measurements; selects the topmost
@@ -128,8 +162,45 @@ export class MeasureTool {
     return { x: s.point.x, y: s.point.y, z: s.point.z };
   }
 
+  private face(ev: MouseEvent): Plane | null {
+    return this.engine.raycastFace(ev.clientX, ev.clientY);
+  }
+
+  /** Perpendicular from the 1st point onto the face under the cursor (or null). */
+  private perpTo(ev: MouseEvent): Measurement | null {
+    const f = this.face(ev);
+    if (!f) return null;
+    return { mode: "length", pts: [this.pending[0], footOnPlane(this.pending[0], f.point, f.normal)], perp: true, ext: f.point };
+  }
+
+  private perpActive(): boolean {
+    return this.mode === "length" && this.perpendicular && this.pending.length === 1;
+  }
+
   onClick(ev: MouseEvent): void {
     if (this.mode === "none") return;
+    if (this.mode === "faces") {
+      const f = this.face(ev);
+      if (!f) return;
+      if (!this.firstFace) {
+        this.firstFace = f;
+        this.pending = [f.point];
+        return;
+      }
+      this.done.push(facesMeasurement(this.firstFace, f));
+      this.firstFace = null;
+      this.pending = [];
+      this.preview = null;
+      return;
+    }
+    if (this.perpActive()) {
+      const m = this.perpTo(ev);
+      if (!m) return;
+      this.done.push(m);
+      this.pending = [];
+      this.preview = null;
+      return;
+    }
     const p = this.hit(ev);
     if (!p) return;
     if (this.mode === "point") {
@@ -145,6 +216,20 @@ export class MeasureTool {
 
   onMove(ev: MouseEvent): void {
     if (this.mode === "none") return;
+    this.preview = null;
+    if (this.perpActive()) {
+      this.preview = this.perpTo(ev);
+      this.hover = this.preview ? this.preview.pts[1] : null; // the snap is the foot
+      this.hoverType = "perpendicular";
+      return;
+    }
+    if (this.mode === "faces") {
+      const f = this.face(ev);
+      this.hover = f ? f.point : null;
+      this.hoverType = "face";
+      if (f && this.firstFace) this.preview = facesMeasurement(this.firstFace, f);
+      return;
+    }
     this.hover = this.hit(ev);
   }
 
@@ -160,6 +245,8 @@ export class MeasureTool {
     this.pending = [];
     this.hover = null;
     this.selected = null;
+    this.firstFace = null;
+    this.preview = null;
   }
 
   dispose(): void {
@@ -180,9 +267,11 @@ export class MeasureTool {
     while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
     this.labels.replaceChildren();
 
-    const drawn: { mode: MeasureMode; pts: V3[]; preview?: boolean; selected?: boolean }[] =
+    const drawn: (Measurement & { preview?: boolean; selected?: boolean })[] =
       this.done.map((m, i) => ({ ...m, selected: i === this.selected }));
-    if (this.pending.length) {
+    if (this.preview) {
+      drawn.push({ ...this.preview, preview: true });
+    } else if (this.pending.length) {
       const pts = this.hover ? [...this.pending, this.hover] : [...this.pending];
       drawn.push({ mode: this.mode, pts, preview: true });
     } else if (this.hover && this.mode !== "none") {
@@ -195,6 +284,21 @@ export class MeasureTool {
       const col = m.selected ? ovc.teal() : ovc.accent();
       const sw = m.selected ? "3.5" : "2";
       const dotR = m.selected ? "5" : "3.5";
+      // The plane the perpendicular lands on: dashed from the foot to the picked
+      // face point, so a foot outside the face itself still reads as "on its plane".
+      if (m.ext && m.pts.length >= 2) {
+        const a = scr[1], b = this.project(m.ext);
+        if (a && b) {
+          const ln = document.createElementNS(NS, "line");
+          ln.setAttribute("x1", String(a.x)); ln.setAttribute("y1", String(a.y));
+          ln.setAttribute("x2", String(b.x)); ln.setAttribute("y2", String(b.y));
+          ln.setAttribute("stroke", col);
+          ln.setAttribute("stroke-width", "1.5");
+          ln.setAttribute("stroke-dasharray", "5 4");
+          ln.setAttribute("opacity", "0.8");
+          this.svg.appendChild(ln);
+        }
+      }
       if (m.pts.length >= 2) {
         const pl = document.createElementNS(NS, "polyline");
         const closed = m.mode === "area" && !m.preview;
@@ -228,11 +332,15 @@ export class MeasureTool {
       if (c) {
         const col = this.hoverType === "vertex" ? "#bcf124"
           : this.hoverType === "midpoint" ? "#ff9d00"
-            : this.hoverType === "edge" ? "#00d0ff" : "#ffd400";
+            : this.hoverType === "edge" ? "#00d0ff"
+              : this.hoverType === "perpendicular" ? "#ff5ad1" : "#ffd400";
         const r = 9;
         const mk = (stroke: string, sw: number) => {
           let el: SVGElement;
-          if (this.hoverType === "face") {
+          if (this.hoverType === "perpendicular") {
+            el = document.createElementNS(NS, "path"); // ⊥
+            el.setAttribute("d", `M${c.x - r},${c.y + r} H${c.x + r} M${c.x},${c.y + r} V${c.y - r}`);
+          } else if (this.hoverType === "face") {
             el = document.createElementNS(NS, "circle");
             el.setAttribute("cx", String(c.x)); el.setAttribute("cy", String(c.y)); el.setAttribute("r", String(r - 2));
           } else if (this.hoverType === "midpoint") {
@@ -274,7 +382,7 @@ export class MeasureTool {
     this.labels.appendChild(d);
   }
 
-  private addLabels(m: { mode: MeasureMode; pts: V3[] }, scr: ({ x: number; y: number } | null)[]): void {
+  private addLabels(m: Measurement, scr: ({ x: number; y: number } | null)[]): void {
     const dist = (a: V3, b: V3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
     if (m.mode === "point" && m.pts[0] && scr[0]) {
       const ifc = this.engine.worldToIfc(m.pts[0]);
@@ -286,8 +394,16 @@ export class MeasureTool {
       this.label(txt, scr[0].x, scr[0].y);
     }
     if (m.mode === "length" && m.pts.length >= 2 && scr[0] && scr[1]) {
-      const d = dist(m.pts[0], m.pts[1]);
-      this.label(formatLength(d), (scr[0].x + scr[1].x) / 2, (scr[0].y + scr[1].y) / 2);
+      const d = formatLength(dist(m.pts[0], m.pts[1]));
+      this.label(m.perp ? `⊥ ${d}` : d, (scr[0].x + scr[1].x) / 2, (scr[0].y + scr[1].y) / 2);
+    }
+    if (m.mode === "faces" && m.pts.length >= 2 && scr[0] && scr[1]) {
+      const d = formatLength(dist(m.pts[0], m.pts[1]));
+      const a = m.angle ?? 0;
+      const txt = a < PARALLEL_DEG
+        ? t("measure.facesParallel", { d })
+        : t("measure.facesAngle", { d, a: a.toFixed(1) });
+      this.label(txt, (scr[0].x + scr[1].x) / 2, (scr[0].y + scr[1].y) / 2);
     }
     if (m.mode === "area" && m.pts.length >= 3) {
       let per = 0;
@@ -303,6 +419,31 @@ export class MeasureTool {
       this.label(t("measure.areaPerimeter", { area: formatArea(area), per: formatLength(per) }), cx, cy);
     }
   }
+}
+
+/** Foot of the perpendicular from `p` onto the plane through `q` with unit normal `n`. */
+export function footOnPlane(p: V3, q: V3, n: V3): V3 {
+  const d = (p.x - q.x) * n.x + (p.y - q.y) * n.y + (p.z - q.z) * n.z;
+  return { x: p.x - d * n.x, y: p.y - d * n.y, z: p.z - d * n.z };
+}
+
+/** Angle between two planes from their unit normals, 0–90° (normal direction
+ *  doesn't matter: opposite faces of a wall are parallel, not 180° apart). */
+export function planeAngleDeg(n1: V3, n2: V3): number {
+  const c = Math.min(1, Math.abs(n1.x * n2.x + n1.y * n2.y + n1.z * n2.z));
+  return (Math.acos(c) * 180) / Math.PI;
+}
+
+/** Face-to-face measurement: the perpendicular from the 2nd picked point onto
+ *  the 1st face's plane (for parallel faces, the distance between the planes),
+ *  plus the angle between the faces. */
+export function facesMeasurement(first: Plane, second: Plane): Measurement {
+  return {
+    mode: "faces",
+    pts: [second.point, footOnPlane(second.point, first.point, first.normal)],
+    ext: first.point,
+    angle: planeAngleDeg(first.normal, second.normal),
+  };
 }
 
 /** Distance from screen point (px,py) to segment a–b. */

@@ -1,6 +1,73 @@
 import { describe, it, expect } from "vitest";
-import { modelToStereo70, distToSeg, pointInPoly, polygonArea } from "../src/viewer/measure";
+import { modelToStereo70, distToSeg, pointInPoly, polygonArea, footOnPlane, planeAngleDeg, facesMeasurement, PARALLEL_DEG } from "../src/viewer/measure";
 import type { GeorefInfo } from "../src/ifc/editor";
+
+const len = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+  Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+const unit = (x: number, y: number, z: number) => {
+  const L = Math.hypot(x, y, z);
+  return { x: x / L, y: y / L, z: z / L };
+};
+
+describe("measure.footOnPlane", () => {
+  it("drops a point straight onto a horizontal plane", () => {
+    const foot = footOnPlane({ x: 3, y: 7, z: -2 }, { x: 0, y: 2, z: 0 }, { x: 0, y: 1, z: 0 });
+    expect(foot).toEqual({ x: 3, y: 2, z: -2 });
+  });
+
+  it("lands on a tilted plane, along its normal, at the shortest distance", () => {
+    const n = unit(1, 1, 0); // plane x + y = 2 through (1,1,0)
+    const p = { x: 4, y: 3, z: 5 };
+    const foot = footOnPlane(p, { x: 1, y: 1, z: 0 }, n);
+    expect(foot.x + foot.y).toBeCloseTo(2); // on the plane
+    expect(foot.z).toBeCloseTo(5);
+    expect(len(p, foot)).toBeCloseTo(5 / Math.SQRT2); // |4+3-2| / sqrt(2)
+  });
+
+  it("ignores the normal's direction and leaves points on the plane in place", () => {
+    const q = { x: 0, y: 0, z: 1 };
+    const a = footOnPlane({ x: 2, y: 2, z: 4 }, q, { x: 0, y: 0, z: 1 });
+    const b = footOnPlane({ x: 2, y: 2, z: 4 }, q, { x: 0, y: 0, z: -1 });
+    expect(a).toEqual(b);
+    expect(footOnPlane({ x: 5, y: -1, z: 1 }, q, { x: 0, y: 0, z: 1 })).toEqual({ x: 5, y: -1, z: 1 });
+  });
+});
+
+describe("measure.planeAngleDeg", () => {
+  it("is 0° for parallel faces, including opposite faces of a wall", () => {
+    expect(planeAngleDeg({ x: 1, y: 0, z: 0 }, { x: 1, y: 0, z: 0 })).toBeCloseTo(0);
+    expect(planeAngleDeg({ x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 })).toBeCloseTo(0);
+  });
+
+  it("is 90° for a wall and a slab, and 45° for a 45° roof", () => {
+    expect(planeAngleDeg({ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 })).toBeCloseTo(90);
+    expect(planeAngleDeg({ x: 0, y: 1, z: 0 }, unit(1, 1, 0))).toBeCloseTo(45);
+  });
+});
+
+describe("measure.facesMeasurement", () => {
+  it("parallel faces: distance between the planes, wherever the 2nd face is clicked", () => {
+    // Two faces of a 0.3 m wall: x = 0 and x = 0.3, clicked at different spots.
+    const m = facesMeasurement(
+      { point: { x: 0, y: 1, z: 2 }, normal: { x: -1, y: 0, z: 0 } },
+      { point: { x: 0.3, y: 2.5, z: -4 }, normal: { x: 1, y: 0, z: 0 } },
+    );
+    expect(m.mode).toBe("faces");
+    expect(len(m.pts[0], m.pts[1])).toBeCloseTo(0.3);
+    expect(m.angle!).toBeLessThan(PARALLEL_DEG);
+    expect(m.ext).toEqual({ x: 0, y: 1, z: 2 }); // dashed to the 1st face's pick
+  });
+
+  it("non-parallel faces: perpendicular from the 2nd point to the 1st plane, plus the angle", () => {
+    const m = facesMeasurement(
+      { point: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 } }, // floor y = 0
+      { point: { x: 1, y: 2, z: 0 }, normal: unit(1, 1, 0) }, // sloped face
+    );
+    expect(len(m.pts[0], m.pts[1])).toBeCloseTo(2);
+    expect(m.pts[1]).toEqual({ x: 1, y: 0, z: 0 });
+    expect(m.angle!).toBeCloseTo(45);
+  });
+});
 
 describe("measure.modelToStereo70", () => {
   it("is the identity when there is no georef", () => {
