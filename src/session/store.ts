@@ -25,6 +25,8 @@ export interface SessionState {
   bcf?: Blob;
   camera?: ViewerCameraState;
   measures?: Measurement[];
+  /** Unsaved property/attribute edits of the primary model (IfcEditor.exportEdits). */
+  edits?: string;
 }
 
 export interface Session {

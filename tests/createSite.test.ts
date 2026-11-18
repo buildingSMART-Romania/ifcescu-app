@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PropertyValueType } from "@ifc-lite/data";
+import { PropertyValueType, QuantityType } from "@ifc-lite/data";
 import { IfcEditor } from "../src/ifc/editor";
 
 // Minimal, self-contained IFC4 model (an IfcProject + context + units). Lets the
@@ -83,5 +83,32 @@ describe("IfcEditor inline round-trip", () => {
     expect(valueOf(ed2, PROJECT_ID, "Pset_Keep", "Goes")).toBeUndefined();
     expect(ed2.getSelection(PROJECT_ID).groups.find((g) => g.name === "Pset_Drop")).toBeUndefined();
     ed2.close();
+  });
+
+  it("unsaved edits survive a page refresh: exportEdits → reopen → importEdits", async () => {
+    const PROJECT_ID = 1;
+    const ed = await IfcEditor.open(new TextEncoder().encode(TINY_IFC));
+    expect(ed.exportEdits()).toBeNull(); // nothing to keep yet
+    ed.setRootAttribute(PROJECT_ID, "Name", "Primul");
+    ed.setRootAttribute(PROJECT_ID, "Name", "Proiect Nou"); // edited twice: the last value wins
+    ed.setProperty(PROJECT_ID, "Pset_Test", "MyProp", "hello", PropertyValueType.Text);
+    ed.createPropertySet(PROJECT_ID, "Pset_Custom", [{ name: "Code", value: "ABC-123", type: PropertyValueType.Identifier }]);
+    ed.setQuantity(PROJECT_ID, "Qto_Test", "Height", 3, QuantityType.Length);
+    const saved = ed.exportEdits()!;
+    const count = ed.changeCount();
+
+    // A fresh editor on the same original bytes, as after a refresh.
+    const ed2 = await IfcEditor.open(new TextEncoder().encode(TINY_IFC));
+    ed2.importEdits(saved);
+    expect(ed2.changeCount()).toBe(count); // the Download badge shows the same number
+    expect(valueOf(ed2, PROJECT_ID, "Atribute", "Name")).toBe("Proiect Nou");
+    expect(valueOf(ed2, PROJECT_ID, "Pset_Test", "MyProp")).toBe("hello");
+    expect(valueOf(ed2, PROJECT_ID, "Pset_Custom", "Code")).toBe("ABC-123");
+    expect(valueOf(ed2, PROJECT_ID, "Qto_Test", "Height")).toBe(valueOf(ed, PROJECT_ID, "Qto_Test", "Height"));
+
+    // And the restored edits still export into the IFC like the originals.
+    const ed3 = await IfcEditor.open(ed2.export());
+    expect(valueOf(ed3, PROJECT_ID, "Atribute", "Name")).toBe("Proiect Nou");
+    expect(valueOf(ed3, PROJECT_ID, "Pset_Custom", "Code")).toBe("ABC-123");
   });
 });
