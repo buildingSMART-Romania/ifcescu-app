@@ -3500,3 +3500,282 @@ table.summary td.k {
 .section-ctl .sec-btn.ok:hover:not(:disabled) { background: var(--bs-magenta-dark); }
 .section-ctl .sec-btn.danger:hover { background: var(--danger, #d33); border-color: var(--danger, #d33); }
 .section-ctl .sec-btn svg { width: 14px; height: 14px; }
+
+/* --- Phone, portrait (.viewer-wrap.mp, set by the Viewer) ------------------
+   The upper part holds the three panels: the chosen one expanded, the others
+   collapsed to strips on the left, each with a blue "Expand" button (the tools
+   strip keeps its icons). The 3D view takes the lower part. A two-row grid
+   (row 1 empty, sized by height — % margins would follow the width) puts
+   .viewer-main below; the panels are placed absolutely against .viewer-wrap,
+   and .viewer-main stays unpositioned so the toolbar inside it can join them. */
+.viewer-wrap.mp {
+  --mp-top: 46%;
+  --mp-strip: 54px;
+  --mp-gap: 6px;
+  --mp-blue: #1a73e8;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--mp-top) minmax(0, 1fr);
+  row-gap: var(--mp-gap);
+  padding: 0 var(--mp-gap); /* no vertical padding: grid rows and the panels' % heights share one base */
+  box-sizing: border-box;
+}
+.viewer-wrap.mp > .viewer-main {
+  grid-row: 2;
+  grid-column: 1;
+  min-height: 0;
+  margin-bottom: var(--mp-gap);
+}
+.viewer-wrap.mp .ifctree-panel,
+.viewer-wrap.mp .props-panel,
+.viewer-wrap.mp .vtoolbar,
+.viewer-wrap.mp .mp-panel {
+  position: absolute;
+  top: var(--mp-gap);
+  height: calc(var(--mp-top) - var(--mp-gap));
+  margin: 0;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  z-index: 4;
+}
+/* Fixed order: strips before the expanded panel sit on the left (mp-l-n),
+   strips after it on the right (mp-r-n, counted from the right edge). */
+.viewer-wrap.mp .mp-collapsed { width: var(--mp-strip) !important; }
+/* Up to 6 panels (tree, tools, props, IDS, BCF, bottom dock): n strips take
+   n * (strip + gap) from their edge. */
+.viewer-wrap.mp .mp-l-0, .viewer-wrap.mp .mp-expanded.mp-before-0 { left: var(--mp-gap); }
+.viewer-wrap.mp .mp-l-1, .viewer-wrap.mp .mp-expanded.mp-before-1 { left: calc(2 * var(--mp-gap) + var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-2, .viewer-wrap.mp .mp-expanded.mp-before-2 { left: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-3, .viewer-wrap.mp .mp-expanded.mp-before-3 { left: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-4, .viewer-wrap.mp .mp-expanded.mp-before-4 { left: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-before-5 { left: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-0, .viewer-wrap.mp .mp-expanded.mp-after-0 { right: var(--mp-gap); }
+.viewer-wrap.mp .mp-r-1, .viewer-wrap.mp .mp-expanded.mp-after-1 { right: calc(2 * var(--mp-gap) + var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-2, .viewer-wrap.mp .mp-expanded.mp-after-2 { right: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-3, .viewer-wrap.mp .mp-expanded.mp-after-3 { right: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-4, .viewer-wrap.mp .mp-expanded.mp-after-4 { right: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-after-5 { right: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded { width: auto !important; }
+.viewer-wrap.mp .tree-resize,
+.viewer-wrap.mp .props-resize { display: none; }
+
+/* Collapsed tree / properties: only the strip head (Expand + vertical title). */
+.viewer-wrap.mp .ifctree-panel.mp-collapsed > :not(.mp-strip-head),
+.viewer-wrap.mp .props-panel.mp-collapsed > :not(.mp-strip-head) { display: none; }
+.mp-strip-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  overflow: hidden;
+}
+.mp-expand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: calc(var(--mp-strip) - 12px);
+  padding: 8px 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--mp-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mp-expand span,
+.mp-strip-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+.mp-strip-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+/* Toolbar: expanded = labelled buttons wrapping in rows; collapsed = a column
+   of icons under the Expand button. Its menus open over the upper area. */
+.viewer-wrap.mp .vtoolbar {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-y: auto;
+}
+.viewer-wrap.mp .vtoolbar.mp-collapsed {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 6px;
+}
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn > span:not(.ic),
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn .caret,
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vsep { display: none; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn { padding: 8px; }
+.viewer-wrap.mp .vmenu {
+  position: fixed;
+  top: calc(var(--mp-wrap-top, 64px) + 2 * var(--mp-gap));
+  left: var(--mp-gap);
+  right: var(--mp-gap);
+  min-width: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+/* Dock panels (IDS/BCF, filter/table/clashes/analytics) in the upper row: a
+   card like the main panels; the dock inside fills it instead of floating
+   over / under the 3D view, and loses its own resize handle. */
+.viewer-wrap.mp .mp-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.viewer-wrap.mp .mp-panel.mp-collapsed > :not(.mp-strip-head) { display: none; }
+.viewer-wrap.mp .mp-panel .ids-panel,
+.viewer-wrap.mp .mp-panel .an-dock,
+.viewer-wrap.mp .mp-panel .datatable-panel {
+  position: static;
+  flex: 1;
+  width: auto;
+  height: auto !important;
+  min-height: 0;
+  margin: 0;
+  border: none;
+  box-shadow: none;
+}
+.viewer-wrap.mp .mp-panel .an-dock-resize,
+.viewer-wrap.mp .mp-panel .datatable-resize { display: none; }
+/* Strips get narrow when 4-5 panels share the row: smaller Expand text. */
+.viewer-wrap.mp .mp-expand { font-size: min(0.72rem, calc(var(--mp-strip) * 0.2)); }
+/* The strip's Expand button must not be squeezed by the icon column below it. */
+.viewer-wrap.mp .vtoolbar.mp-collapsed > * { flex-shrink: 0; }
+
+/* Phone: the top bar wraps onto a second row instead of running off-screen. */
+@media (max-width: 700px) {
+  .topbar {
+    height: auto;
+    min-height: 58px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 6px 10px;
+  }
+  .topbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+}
+
+/* Bar between the top panels and the 3D view: drag it to change the split. */
+.viewer-wrap.mp { row-gap: 16px; }
+.mp-divider {
+  position: absolute;
+  left: var(--mp-gap);
+  right: var(--mp-gap);
+  top: var(--mp-top); /* exactly the row gap below the panels */
+  height: 16px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  touch-action: none; /* the drag must not scroll the page */
+}
+.mp-divider-grip {
+  width: 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mp-blue);
+  opacity: 0.55;
+}
+.mp-divider:hover .mp-divider-grip,
+.mp-divider:active .mp-divider-grip { opacity: 1; }
+/* Long vertical titles: shrink and end with "…" instead of being cut off. */
+.mp-strip-head { min-height: 0; max-height: 100%; }
+.mp-strip-title {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Phone: no 3D / 3D Globe tabs (the 3D view is the only one), and the top-bar
+   actions fit one row under the logo - icon-only (labels stay as tooltips and
+   aria-labels; Download keeps its count). */
+@media (max-width: 700px) {
+  .topbar-tabs { display: none; }
+  .topbar-right {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .topbar .btn-label { display: none; }
+  .topbar .toggle,
+  .topbar .help-toggle,
+  .topbar .settings-toggle,
+  .topbar .lang-toggle,
+  .topbar .theme-toggle {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .topbar .dl-btn {
+    height: 36px;
+    padding: 0 9px;
+    gap: 5px;
+    flex: 0 0 auto;
+  }
+}
+
+/* Tool buttons wrapper: transparent to layout everywhere ... */
+.vtools { display: contents; }
+/* ... except the collapsed tools strip on a portrait phone: the Expand button
+   stays put and only the icon column below it scrolls (thin, vertical only),
+   so the scrollbar neither starts beside the button nor widens the strip. */
+.viewer-wrap.mp .vtoolbar.mp-collapsed { overflow: hidden; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar { width: 4px; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools > * { flex-shrink: 0; }
+
+/* Desktop: the right column holding IDS and/or BCF. One open = full height as
+   before; both open = stacked halves (the 3D view keeps its width). */
+.side-docks {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 360px;
+  min-height: 0;
+}
+.side-docks > .ids-panel {
+  width: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.side-docks > .ids-panel + .ids-panel { border-top: 1px solid var(--border); }
