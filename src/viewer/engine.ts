@@ -185,11 +185,14 @@ export class ViewerEngine {
       borderRadius: "50%", background: "#fff", border: "1px solid #bbb",
       boxShadow: "0 1px 6px rgba(0,0,0,0.4)", cursor: "grab", pointerEvents: "auto", zIndex: "7",
       display: "none", alignItems: "center", justifyContent: "center", fontSize: "15px", userSelect: "none",
+      touchAction: "none", // a finger drag moves the section; it must not scroll the page (that cancels the drag)
     });
     handle.textContent = "✂️";
     handle.title = t("measure.dragSection");
     parent.appendChild(handle);
     this.sectionHandle = handle;
+    let secFrame = 0;
+    let lastNotified = -1;
     const onMove = (e: PointerEvent) => {
       if (!this.handleDrag || !this.sec || !this.secCenterWorld) return;
       const cam = this.renderer.getCamera();
@@ -214,8 +217,15 @@ export class ViewerEngine {
           const worldDelta = (pxAlong / len) * eps; // screen px → world units along the normal
           const dPos = (worldDelta / range) * 100;
           this.sec.pos = Math.max(0, Math.min(100, this.sec.pos + dPos));
-          this.applySection();
-          this.onSectionMove?.(Math.round(this.sec.pos));
+          // Apply once per frame (touch fires moves faster than frames) and tell
+          // the UI only when the slider value changes, not on every event.
+          if (!secFrame) secFrame = requestAnimationFrame(() => {
+            secFrame = 0;
+            if (!this.sec) return;
+            this.applySection();
+            const p = Math.round(this.sec.pos);
+            if (p !== lastNotified) { lastNotified = p; this.onSectionMove?.(p); }
+          });
         }
       }
       this.handleDrag.lastX = e.clientX;
@@ -230,11 +240,13 @@ export class ViewerEngine {
       handle.style.cursor = "grabbing";
     });
     handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", (e) => {
+    const onUp = (e: PointerEvent) => {
       this.handleDrag = null;
       try { handle.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
       handle.style.cursor = "grab";
-    });
+    };
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
   }
 
   /** Whether a model id is already federated (guards re-adds from effect re-runs). */
