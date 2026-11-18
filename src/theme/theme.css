@@ -3618,16 +3618,69 @@ table.summary td.k {
 .viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn .caret,
 .viewer-wrap.mp .vtoolbar.mp-collapsed .vsep { display: none; }
 .viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn { padding: 8px; }
+/* Toolbar menus on a phone: a bottom sheet over a dimmed screen, above
+   every panel (all panels share z-index 4, so the open menu lifts its
+   toolbar), instead of a box floating over the panels and the section bar. */
+.vmenu-backdrop, .vmenu-title { display: none; }
+.viewer-wrap.mp .vtoolbar:has(.vmenu) { z-index: 60; }
+/* its own scrollbar would paint over the sheet */
+.viewer-wrap.mp .vtoolbar:has(.vmenu) { scrollbar-width: none; }
+.viewer-wrap.mp .vtoolbar:has(.vmenu)::-webkit-scrollbar { display: none; }
+.viewer-wrap.mp .vmenu-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 60;
+  animation: vsheet-fade 0.15s ease-out;
+}
 .viewer-wrap.mp .vmenu {
   position: fixed;
-  top: calc(var(--mp-wrap-top, 64px) + 2 * var(--mp-gap));
-  left: var(--mp-gap);
-  right: var(--mp-gap);
+  top: auto;
+  bottom: 0;
+  left: 0;
+  right: 0;
   min-width: 0;
-  max-height: 42vh;
+  max-height: 65vh;
   overflow-y: auto;
-  z-index: 50;
+  overscroll-behavior: contain;
+  border-radius: 16px 16px 0 0;
+  border-bottom: none;
+  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.25);
+  z-index: 61;
+  animation: vsheet-up 0.18s ease-out;
 }
+.viewer-wrap.mp .vmenu-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  padding: 16px 6px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 15px;
+}
+.viewer-wrap.mp .vmenu-title::before {
+  /* grab bar */
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.viewer-wrap.mp .vmenu-title .ic { display: inline-flex; width: 20px; }
+.viewer-wrap.mp .vmenu-item { padding-top: 11px; padding-bottom: 11px; }
+@keyframes vsheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes vsheet-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* Dock panels (IDS/BCF, filter/table/clashes/analytics) in the upper row: a
    card like the main panels; the dock inside fills it instead of floating
