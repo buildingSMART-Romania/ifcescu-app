@@ -3957,13 +3957,13 @@ html, body { touch-action: pan-x pan-y; }
 .viewer-wrap.mp .mp-expand { width: calc(var(--mp-strip) - 8px); }
 
 /* --- Phone, landscape (.viewer-wrap.mp.mp-land) ---------------------------
-   The portrait layout turned 90 degrees: the panels share the LEFT part
-   (--mp-top is now a share of the width), collapsed ones as horizontal strips
-   stacked at the top/bottom, the chosen one filling the height between them;
-   the 3D view takes the right part. No horizontal padding, so the grid column
-   and the panel % widths share one base (as rows do in portrait). */
+   Same as portrait, turned sideways: the panels sit side by side on the LEFT,
+   full height - collapsed ones as vertical strips, the chosen one --mp-exp
+   wide. The panel area (--mp-area = strips + expanded panel, from the Viewer)
+   is the first grid column, so closing or collapsing panels moves the divider
+   and gives the 3D view the room. */
 .viewer-wrap.mp.mp-land {
-  grid-template-columns: var(--mp-top) minmax(0, 1fr);
+  grid-template-columns: var(--mp-area) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   column-gap: 16px;
   row-gap: 0;
@@ -3978,73 +3978,26 @@ html, body { touch-action: pan-x pan-y; }
 .viewer-wrap.mp.mp-land .props-panel,
 .viewer-wrap.mp.mp-land .vtoolbar,
 .viewer-wrap.mp.mp-land .mp-panel {
-  left: var(--mp-gap);
-  right: auto;
-  top: auto;
-  bottom: auto;
-  width: calc(var(--mp-top) - var(--mp-gap)) !important;
+  top: var(--mp-gap);
+  bottom: var(--mp-gap);
+  height: auto;
 }
-.viewer-wrap.mp.mp-land .mp-collapsed { height: var(--mp-strip); }
-.viewer-wrap.mp.mp-land .mp-expanded { height: auto; }
-.viewer-wrap.mp.mp-land .mp-l-0, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-0 { top: var(--mp-gap); }
-.viewer-wrap.mp.mp-land .mp-r-0, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-0 { bottom: var(--mp-gap); }
-.viewer-wrap.mp.mp-land .mp-l-1, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-1 { top: calc(2 * var(--mp-gap) + 1 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-1, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-1 { bottom: calc(2 * var(--mp-gap) + 1 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-2, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-2 { top: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-2, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-2 { bottom: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-3, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-3 { top: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-3, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-3 { bottom: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-4, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-4 { top: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-4, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-4 { bottom: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-5, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-5 { top: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-5, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-5 { bottom: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-6, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-6 { top: calc(7 * var(--mp-gap) + 6 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-6, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-6 { bottom: calc(7 * var(--mp-gap) + 6 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-7, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-7 { top: calc(8 * var(--mp-gap) + 7 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-7, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-7 { bottom: calc(8 * var(--mp-gap) + 7 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-l-8, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-8 { top: calc(9 * var(--mp-gap) + 8 * var(--mp-strip)); }
-.viewer-wrap.mp.mp-land .mp-r-8, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-8 { bottom: calc(9 * var(--mp-gap) + 8 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-expanded { width: var(--mp-exp) !important; right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-0 { left: calc(var(--mp-area) - var(--mp-strip)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-1 { left: calc(var(--mp-area) - 2 * var(--mp-strip) - 1 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-2 { left: calc(var(--mp-area) - 3 * var(--mp-strip) - 2 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-3 { left: calc(var(--mp-area) - 4 * var(--mp-strip) - 3 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-4 { left: calc(var(--mp-area) - 5 * var(--mp-strip) - 4 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-5 { left: calc(var(--mp-area) - 6 * var(--mp-strip) - 5 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-6 { left: calc(var(--mp-area) - 7 * var(--mp-strip) - 6 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-7 { left: calc(var(--mp-area) - 8 * var(--mp-strip) - 7 * var(--mp-gap)); right: auto; }
+.viewer-wrap.mp.mp-land .mp-r-8 { left: calc(var(--mp-area) - 9 * var(--mp-strip) - 8 * var(--mp-gap)); right: auto; }
 
-/* Strip head: a row - close, Expand, title. */
-.viewer-wrap.mp.mp-land .mp-strip-head {
-  flex-direction: row;
-  align-items: center;
-  height: 100%;
-  max-height: none;
-  max-width: 100%;
-  padding: 0 4px;
-  gap: 6px;
-}
-.viewer-wrap.mp.mp-land .mp-close { width: auto; height: calc(var(--mp-strip) - 10px); max-width: none; }
-.viewer-wrap.mp.mp-land .mp-expand {
-  flex-direction: row;
-  width: auto;
-  height: calc(var(--mp-strip) - 8px);
-  padding: 0 10px;
-  font-size: 0.72rem;
-  flex-shrink: 0;
-}
-.viewer-wrap.mp.mp-land .mp-expand span,
-.viewer-wrap.mp.mp-land .mp-strip-title { writing-mode: horizontal-tb; transform: none; }
-.viewer-wrap.mp.mp-land .mp-strip-title { min-width: 0; }
-/* Collapsed tools: a row of icons right of Expand (scrolls sideways). */
-.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed { flex-direction: row; padding: 0 4px 0 0; }
-.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed > .mp-strip-head { flex: 0 0 auto; width: auto; }
-.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed > .vtools {
-  flex-direction: row;
-  height: 100%;
-  width: auto;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar { height: 4px; width: auto; }
-.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed .vbtn { padding: 5px; }
-/* Divider: a vertical bar between the panels and the 3D view. */
+/* Divider: a vertical bar right of the panel area. */
 .viewer-wrap.mp.mp-land .mp-divider {
   top: var(--mp-gap);
   bottom: var(--mp-gap);
-  left: var(--mp-top);
+  left: var(--mp-area);
   right: auto;
   width: 16px;
   height: auto;
@@ -4053,6 +4006,29 @@ html, body { touch-action: pan-x pan-y; }
 .viewer-wrap.mp.mp-land .mp-divider-grip { width: 6px; height: 56px; }
 /* Menus: a sheet from the bottom-left (over the panels), taller here. */
 .viewer-wrap.mp.mp-land .vmenu { right: auto; width: min(420px, 60vw); max-height: 92vh; max-height: 92dvh; border-radius: 0 16px 0 0; }
+/* The 3D quick-action bar: a translucent column on the right edge of the 3D
+   view instead of a row across its bottom. */
+.viewer-wrap.mp.mp-land .viewbar {
+  left: auto;
+  right: 8px;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  flex-direction: column;
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 4px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.viewer-wrap.mp.mp-land .viewbar::-webkit-scrollbar { display: none; }
+.viewer-wrap.mp.mp-land .viewbar-btn { width: 34px; height: 34px; flex-shrink: 0; }
+.viewer-wrap.mp.mp-land .viewbar-sep { width: auto; height: 1px; margin: 3px 4px; align-self: stretch; }
+/* ...and the view cube steps left of it, a bit smaller. */
+.viewer-wrap.mp.mp-land .navcube-wrap { right: 52px; top: 6px; transform: scale(0.8); transform-origin: top right; }
 
 /* Phone, landscape: the top bar becomes a narrow column on the left (logo
    knot on top, icon-only actions under it), like the panels. */
