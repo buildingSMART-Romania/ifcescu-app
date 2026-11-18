@@ -88,7 +88,7 @@ export default function App() {
       return x;
     });
 
-  const onFile = async (file: File, opts?: { restoring?: boolean }) => {
+  const onFile = async (file: File, opts?: { restoring?: boolean; edits?: string }) => {
     const gen = ++loadSeq.current; // supersedes any in-flight load
     // A new model starts a new session: its IDS/BCF/camera/measurements no longer apply.
     if (!opts?.restoring) {
@@ -118,6 +118,15 @@ export default function App() {
       // survive tab switches. The 3D viewer edits this same editor instance.
       const editor = await IfcEditor.open(bytes);
       if (gen !== loadSeq.current) return; // a newer load took over
+      // Restoring a session: replay the unsaved edits before anything reads the model.
+      if (opts?.edits) {
+        try {
+          editor.importEdits(opts.edits);
+        } catch (e) {
+          console.warn("Could not restore the unsaved edits", e);
+        }
+        setChangeCount(editor.changeCount());
+      }
       const g = editor.getGeoref();
       setLoaded({ editor, georef: g, bytes, fileName: file.name });
       setGeoref(g);
@@ -168,6 +177,19 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [bcfProject, loaded, restoreState]);
+
+  // Save the unsaved edits on every edit report from the Viewer (a version, not
+  // the count: re-editing the same property keeps the count but changes the
+  // value). Not while a restore is pending.
+  const [editsVersion, setEditsVersion] = useState(0);
+  const onEditsChanged = (n: number) => {
+    setChangeCount(n);
+    setEditsVersion((v) => v + 1);
+  };
+  useEffect(() => {
+    if (!loaded || restoreState) return;
+    void saveState({ edits: loaded.editor.exportEdits() ?? undefined });
+  }, [editsVersion, loaded, restoreState]);
 
   // Close project: forget the session and go back to the upload screen.
   const closeProject = () => {
@@ -242,7 +264,7 @@ export default function App() {
       const bcf = s.state.bcf ? await readBcfFile(s.state.bcf).catch(() => null) : null;
       if (cancelled || gen !== loadSeq.current) return;
       setRestoreState(s.state);
-      await onFile(new File([primary.bytes as BlobPart], primary.fileName, { type: "application/x-step" }), { restoring: true });
+      await onFile(new File([primary.bytes as BlobPart], primary.fileName, { type: "application/x-step" }), { restoring: true, edits: s.state.edits });
       if (cancelled || gen + 1 !== loadSeq.current) return; // onFile bumped it once; anything more = user took over
       setExtraModels(s.models.filter((m) => !m.primary).map((m) => ({ id: `extra-${++extraSeq.current}`, bytes: m.bytes, fileName: m.fileName })));
       if (bcf) setBcfProject(bcf);
@@ -394,7 +416,7 @@ export default function App() {
             <div className={"tab-pane" + (tab === "view" ? "" : " tab-hidden")}>
               <Viewer
                 editor={loaded.editor}
-                onChangeCount={setChangeCount}
+                onChangeCount={onEditsChanged}
                 bytes={loaded.bytes}
                 fileName={loaded.fileName}
                 theme={theme}

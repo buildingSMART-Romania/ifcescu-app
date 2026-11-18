@@ -149,6 +149,17 @@ export class IfcEditor {
     return this.view.hasChanges();
   }
 
+  /** The unsaved edits as JSON (the mutation history), for keeping them across a
+   *  page refresh; null when there are none. */
+  exportEdits(): string | null {
+    return this.view.hasChanges() ? this.view.exportMutations() : null;
+  }
+
+  /** Replay edits saved by exportEdits() onto this (freshly opened) model. */
+  importEdits(json: string): void {
+    this.view.importMutations(json);
+  }
+
   /** Number of DISTINCT things changed (an attribute/property/set edited twice
    *  counts once), not the raw mutation-operation count. */
   changeCount(): number {
