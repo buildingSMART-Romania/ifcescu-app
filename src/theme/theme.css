@@ -3707,3 +3707,35 @@ table.summary td.k {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Phone: no 3D / 3D Globe tabs (the 3D view is the only one), and the top-bar
+   actions fit one row under the logo - icon-only (labels stay as tooltips and
+   aria-labels; Download keeps its count). */
+@media (max-width: 700px) {
+  .topbar-tabs { display: none; }
+  .topbar-right {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .topbar .btn-label { display: none; }
+  .topbar .toggle,
+  .topbar .help-toggle,
+  .topbar .settings-toggle,
+  .topbar .lang-toggle,
+  .topbar .theme-toggle {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .topbar .dl-btn {
+    height: 36px;
+    padding: 0 9px;
+    gap: 5px;
+    flex: 0 0 auto;
+  }
+}

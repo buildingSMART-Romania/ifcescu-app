@@ -345,15 +345,15 @@ export default function App() {
           {loaded && changeCount > 0 && (
             <button className="dl-btn" onClick={downloadEdited} title={t("app.downloadTitle")}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
-              <span>{t("app.download")}</span>
+              <span className="btn-label">{t("app.download")}</span>
               <span className="dl-count">{changeCount}</span>
             </button>
           )}
           {loaded && <UploadPanel onFile={onFile} variant="button" />}
           {loaded && (
-            <button className="toggle" onClick={closeProject} title={t("app.closeProjectTitle")}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: -3 }}><path d="M18 6L6 18M6 6l12 12" /></svg>
-              {t("app.closeProject")}
+            <button className="toggle" onClick={closeProject} title={t("app.closeProjectTitle")} aria-label={t("app.closeProject")}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: -3 }}><path d="M18 6L6 18M6 6l12 12" /></svg>
+              <span className="btn-label">{t("app.closeProject")}</span>
             </button>
           )}
           <button className="help-toggle" data-tour="help" onClick={() => setShowHelp(true)} title={t("help.buttonTitle")} aria-label={t("help.buttonTitle")}>
