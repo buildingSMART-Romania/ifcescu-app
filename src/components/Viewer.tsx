@@ -159,8 +159,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const analyticsEnabled = settings.experimental.analytics;
   // The bottom area is single-occupancy: Filter / Clash / Analytics (absolute
   // .an-dock overlays) and Table (a flow panel) share it, so exactly one is open
-  // at a time — opening one closes the others. The right-side IDS/BCF docks are
-  // tracked separately (see `dock`) and can coexist with a bottom panel.
+  // at a time — opening one closes the others. The right-side IDS and BCF panels
+  // are tracked separately (`idsOpen` / `bcfOpen`) and can coexist with it.
   const [bottomDock, setBottomDock] = useState<BottomDock>("none");
   const bottomDockRef = useRef(bottomDock);
   bottomDockRef.current = bottomDock;
@@ -277,12 +277,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [visibleIds, setVisibleIds] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ready, setReady] = useState(false);
-  // The right dock hosts the IDS or BCF panel (toolbar toggles; mutually exclusive).
-  // Filter lives in `bottomDock` — it renders as a bottom .an-dock, not on the right.
-  const [dock, setDock] = useState<"none" | "ids" | "bcf">("none");
-  // Mirror for the empty-deps keydown handler (Escape closes the open dock).
-  const dockRef = useRef(dock);
-  dockRef.current = dock;
+  // The IDS and BCF panels (right side on desktop; toolbar toggles). Independent:
+  // both can be open at once. Filter lives in `bottomDock` (a bottom .an-dock).
+  const [idsOpen, setIdsOpen] = useState(false);
+  const [bcfOpen, setBcfOpen] = useState(false);
+  // Mirror for the empty-deps keydown handler (Escape closes BCF, then IDS).
+  const sideOpenRef = useRef({ ids: idsOpen, bcf: bcfOpen });
+  sideOpenRef.current = { ids: idsOpen, bcf: bcfOpen };
   const [idsEditorOpen, setIdsEditorOpen] = useState(false);
   // The "active" authored/uploaded IDS document — the single source of truth for
   // what the editor edits and whether the panel button reads "Edit IDS". Saved
@@ -297,7 +298,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // strips on the left (the tools strip keeps its icons) — and the 3D view gets
   // the lower part. Selecting an element brings the properties forward.
   const isPortraitPhone = useMediaQuery("(max-width: 700px) and (orientation: portrait)");
-  const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props" | "side" | "bottom">("tree");
+  const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props" | "ids" | "bcf" | "bottom">("tree");
   // Share of the viewer height the top panels take (%), set by dragging the bar
   // between them and the 3D view; remembered.
   const [mpTop, setMpTop] = usePersistedNumber("mobileTopPct", 46);
@@ -684,9 +685,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Portrait phone: a dock that opens (IDS/BCF, filter/table/clashes/analytics)
   // becomes the expanded panel of the upper row.
   useEffect(() => {
-    if (isPortraitPhone && dock !== "none") setMobilePanel("side");
+    if (isPortraitPhone && idsOpen) setMobilePanel("ids");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dock]);
+  }, [idsOpen]);
+  useEffect(() => {
+    if (isPortraitPhone && bcfOpen) setMobilePanel("bcf");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bcfOpen]);
   useEffect(() => {
     if (isPortraitPhone && bottomDock !== "none") setMobilePanel("bottom");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -738,8 +743,10 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           if (sectionRef.current) toggleSection();
         } else if (bottomDockRef.current !== "none") {
           setBottomDock("none");
-        } else if (dockRef.current !== "none") {
-          setDock("none");
+        } else if (sideOpenRef.current.bcf) {
+          setBcfOpen(false);
+        } else if (sideOpenRef.current.ids) {
+          setIdsOpen(false);
         }
       } else if (e.key === "h" || e.key === "H") {
         toggleHideSelection();
@@ -760,9 +767,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       } else if (e.key === "t" || e.key === "T") {
         toggleBottom("table");
       } else if (e.key === "b" || e.key === "B") {
-        setDock((d) => (d === "bcf" ? "none" : "bcf"));
+        setBcfOpen((o) => !o);
       } else if (e.key === "i" || e.key === "I") {
-        setDock((d) => (d === "ids" ? "none" : "ids"));
+        setIdsOpen((o) => !o);
       } else if (e.key === "f" || e.key === "F") {
         toggleBottom("filter");
       } else if (e.key === "x" || e.key === "X") {
@@ -859,7 +866,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // success so the user sees the report. Errors propagate to the editor, which
   // surfaces them inline (instead of being swallowed here).
   const validateAuthoredIds = async (doc: IDSDocument): Promise<IDSValidationReport | null> => {
-    setDock("ids");
+    setIdsOpen(true);
     const report = await runIdsValidation(bytes, doc, fileName);
     onIdsReport?.(report);
     return report;
@@ -925,7 +932,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     } else {
       onBcfProject?.(generated);
     }
-    setDock("bcf");
+    setBcfOpen(true);
   };
 
   function wireEvents(host: HTMLElement) {
@@ -1475,7 +1482,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             models={pivotModels}
             bcfProject={bcfProject}
             onBcfProject={onBcfProject}
-            onOpenBcf={() => setDock("bcf")}
+            onOpenBcf={() => setBcfOpen(true)}
             onCaptureSnapshots={runSnapshotCapture}
             fileName={fileName}
             onShow={onClashShow}
@@ -1503,7 +1510,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     />
     </Suspense>
   ) : null;
-  const sideDock = dock === "ids" && onIdsReport ? (
+  const idsDock = idsOpen && onIdsReport ? (
     <Suspense fallback={<div className="ids-panel" />}>
     <IdsPanel
       bytes={bytes}
@@ -1519,10 +1526,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       onDocParsed={setActiveIdsDoc}
       hasActiveDoc={hasIdsContent(activeIdsDoc)}
       onDiscardDraft={() => setActiveIdsDoc(null)}
-      onClose={() => setDock("none")}
+      onClose={() => setIdsOpen(false)}
     />
     </Suspense>
-  ) : dock === "bcf" ? (
+  ) : null;
+  const bcfDock = bcfOpen ? (
     <Suspense fallback={<div className="ids-panel" />}>
     <BcfPanel
       engine={engineRef.current}
@@ -1533,7 +1541,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       onResetView={onResetView}
       bcfProject={bcfProject ?? null}
       onBcfProject={(p) => onBcfProject?.(p)}
-      onClose={() => setDock("none")}
+      onClose={() => setBcfOpen(false)}
     />
     </Suspense>
   ) : null;
@@ -1546,14 +1554,18 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     : bottomDock === "analytics" && analyticsEnabled && ready && pivotModels.length > 0 ? { title: t("analytics.tab"), color: MP_COLORS.analytics }
     : null;
 
-  type MobilePanel = "tree" | "tools" | "props" | "side" | "bottom";
-  const mpOrder = (["tree", "tools", "props", "side", "bottom"] as MobilePanel[]).filter(
-    (k) => (k !== "props" || !!(propGroups || showInfo)) && (k !== "side" || !!sideDock) && (k !== "bottom" || !!bottomPanel),
+  type MobilePanel = "tree" | "tools" | "props" | "ids" | "bcf" | "bottom";
+  const mpOrder = (["tree", "tools", "props", "ids", "bcf", "bottom"] as MobilePanel[]).filter(
+    (k) =>
+      (k !== "props" || !!(propGroups || showInfo)) &&
+      (k !== "ids" || !!idsDock) &&
+      (k !== "bcf" || !!bcfDock) &&
+      (k !== "bottom" || !!bottomPanel),
   );
   const mpActive: MobilePanel = mpOrder.includes(mobilePanel) ? mobilePanel : "tree";
   const mpAt = mpOrder.indexOf(mpActive);
   // Narrower strips when more panels share the row, so the expanded one keeps room.
-  const mpStrip = mpOrder.length >= 5 ? 40 : mpOrder.length === 4 ? 46 : 54;
+  const mpStrip = mpOrder.length >= 6 ? 36 : mpOrder.length === 5 ? 40 : mpOrder.length === 4 ? 46 : 54;
   const mpClass = (k: MobilePanel) => {
     if (!isPortraitPhone) return "";
     const i = mpOrder.indexOf(k);
@@ -1735,12 +1747,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             <span>{t("filter.tab")}</span>
           </button>
 
-          <button className={"vbtn" + (dock === "ids" ? " active" : "")} onClick={() => setDock((d) => (d === "ids" ? "none" : "ids"))} data-tour="ids">
+          <button className={"vbtn" + (idsOpen ? " active" : "")} onClick={() => setIdsOpen((o) => !o)} data-tour="ids">
             <span className="ic"><ToolIcon kind="ids" /></span>
             <span>IDS</span>
           </button>
 
-          <button className={"vbtn" + (dock === "bcf" ? " active" : "")} onClick={() => setDock((d) => (d === "bcf" ? "none" : "bcf"))} data-tour="bcf">
+          <button className={"vbtn" + (bcfOpen ? " active" : "")} onClick={() => setBcfOpen((o) => !o)} data-tour="bcf">
             <span className="ic"><ToolIcon kind="bcf" /></span>
             <span>BCF</span>
           </button>
@@ -1933,14 +1945,27 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       </aside>
       )}
 
-      {!isPortraitPhone && sideDock}
+      {/* Desktop: IDS and BCF share the right column, stacked when both are
+          open, so the 3D view keeps its width. */}
+      {!isPortraitPhone && (idsDock || bcfDock) && (
+        <div className="side-docks">
+          {idsDock}
+          {bcfDock}
+        </div>
+      )}
 
-      {/* Phone, portrait: the side dock (IDS/BCF) and the bottom dock (filter,
-          table, clashes, analytics) join the upper row as panels of their own. */}
-      {isPortraitPhone && sideDock && (
-        <aside className={"mp-panel" + mpClass("side")}>
-          {mpHead("side", dock === "ids" ? "IDS" : "BCF", dock === "ids" ? MP_COLORS.ids : MP_COLORS.bcf)}
-          {sideDock}
+      {/* Phone, portrait: IDS, BCF and the bottom dock (filter, table, clashes,
+          analytics) join the upper row as panels of their own. */}
+      {isPortraitPhone && idsDock && (
+        <aside className={"mp-panel" + mpClass("ids")}>
+          {mpHead("ids", "IDS", MP_COLORS.ids)}
+          {idsDock}
+        </aside>
+      )}
+      {isPortraitPhone && bcfDock && (
+        <aside className={"mp-panel" + mpClass("bcf")}>
+          {mpHead("bcf", "BCF", MP_COLORS.bcf)}
+          {bcfDock}
         </aside>
       )}
       {isPortraitPhone && bottomPanel && (

@@ -3543,18 +3543,20 @@ table.summary td.k {
 /* Fixed order: strips before the expanded panel sit on the left (mp-l-n),
    strips after it on the right (mp-r-n, counted from the right edge). */
 .viewer-wrap.mp .mp-collapsed { width: var(--mp-strip) !important; }
-/* Up to 5 panels (tree, tools, props, side dock, bottom dock): n strips take
+/* Up to 6 panels (tree, tools, props, IDS, BCF, bottom dock): n strips take
    n * (strip + gap) from their edge. */
 .viewer-wrap.mp .mp-l-0, .viewer-wrap.mp .mp-expanded.mp-before-0 { left: var(--mp-gap); }
 .viewer-wrap.mp .mp-l-1, .viewer-wrap.mp .mp-expanded.mp-before-1 { left: calc(2 * var(--mp-gap) + var(--mp-strip)); }
 .viewer-wrap.mp .mp-l-2, .viewer-wrap.mp .mp-expanded.mp-before-2 { left: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
 .viewer-wrap.mp .mp-l-3, .viewer-wrap.mp .mp-expanded.mp-before-3 { left: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
-.viewer-wrap.mp .mp-expanded.mp-before-4 { left: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-4, .viewer-wrap.mp .mp-expanded.mp-before-4 { left: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-before-5 { left: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
 .viewer-wrap.mp .mp-r-0, .viewer-wrap.mp .mp-expanded.mp-after-0 { right: var(--mp-gap); }
 .viewer-wrap.mp .mp-r-1, .viewer-wrap.mp .mp-expanded.mp-after-1 { right: calc(2 * var(--mp-gap) + var(--mp-strip)); }
 .viewer-wrap.mp .mp-r-2, .viewer-wrap.mp .mp-expanded.mp-after-2 { right: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
 .viewer-wrap.mp .mp-r-3, .viewer-wrap.mp .mp-expanded.mp-after-3 { right: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
-.viewer-wrap.mp .mp-expanded.mp-after-4 { right: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-4, .viewer-wrap.mp .mp-expanded.mp-after-4 { right: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-after-5 { right: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
 .viewer-wrap.mp .mp-expanded { width: auto !important; }
 .viewer-wrap.mp .tree-resize,
 .viewer-wrap.mp .props-resize { display: none; }
@@ -3761,3 +3763,19 @@ table.summary td.k {
 .viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar { width: 4px; }
 .viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools > * { flex-shrink: 0; }
+
+/* Desktop: the right column holding IDS and/or BCF. One open = full height as
+   before; both open = stacked halves (the 3D view keeps its width). */
+.side-docks {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 360px;
+  min-height: 0;
+}
+.side-docks > .ids-panel {
+  width: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.side-docks > .ids-panel + .ids-panel { border-top: 1px solid var(--border); }
