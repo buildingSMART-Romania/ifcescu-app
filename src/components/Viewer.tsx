@@ -124,12 +124,12 @@ function Dropdown({ label, icon, active, children, dataTour }: { label: string; 
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const onDoc = (e: PointerEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("pointerdown", onDoc);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("pointerdown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
@@ -140,7 +140,15 @@ function Dropdown({ label, icon, active, children, dataTour }: { label: string; 
         <span>{label}</span>
         <span className="caret">▾</span>
       </button>
-      {open && <div className="vmenu" onClick={() => setOpen(false)}>{children}</div>}
+      {/* On a portrait phone the menu is a bottom sheet over a dimmed screen
+          (title + backdrop are hidden on desktop), so it never overlaps panels. */}
+      {open && <div className="vmenu-backdrop" onClick={() => setOpen(false)} />}
+      {open && (
+        <div className="vmenu" onClick={() => setOpen(false)}>
+          <div className="vmenu-title"><span className="ic">{icon}</span>{label}</div>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
