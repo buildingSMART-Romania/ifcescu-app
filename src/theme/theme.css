@@ -3500,3 +3500,182 @@ table.summary td.k {
 .section-ctl .sec-btn.ok:hover:not(:disabled) { background: var(--bs-magenta-dark); }
 .section-ctl .sec-btn.danger:hover { background: var(--danger, #d33); border-color: var(--danger, #d33); }
 .section-ctl .sec-btn svg { width: 14px; height: 14px; }
+
+/* --- Phone, portrait (.viewer-wrap.mp, set by the Viewer) ------------------
+   The upper part holds the three panels: the chosen one expanded, the others
+   collapsed to strips on the left, each with a blue "Expand" button (the tools
+   strip keeps its icons). The 3D view takes the lower part. A two-row grid
+   (row 1 empty, sized by height — % margins would follow the width) puts
+   .viewer-main below; the panels are placed absolutely against .viewer-wrap,
+   and .viewer-main stays unpositioned so the toolbar inside it can join them. */
+.viewer-wrap.mp {
+  --mp-top: 46%;
+  --mp-strip: 54px;
+  --mp-gap: 6px;
+  --mp-blue: #1a73e8;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--mp-top) minmax(0, 1fr);
+  row-gap: var(--mp-gap);
+  padding: 0 var(--mp-gap); /* no vertical padding: grid rows and the panels' % heights share one base */
+  box-sizing: border-box;
+}
+.viewer-wrap.mp > .viewer-main {
+  grid-row: 2;
+  grid-column: 1;
+  min-height: 0;
+  margin-bottom: var(--mp-gap);
+}
+.viewer-wrap.mp .ifctree-panel,
+.viewer-wrap.mp .props-panel,
+.viewer-wrap.mp .vtoolbar {
+  position: absolute;
+  top: var(--mp-gap);
+  height: calc(var(--mp-top) - var(--mp-gap));
+  margin: 0;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  z-index: 4;
+}
+/* Fixed order: strips before the expanded panel sit on the left (mp-l-n),
+   strips after it on the right (mp-r-n, counted from the right edge). */
+.viewer-wrap.mp .mp-collapsed { width: var(--mp-strip) !important; }
+.viewer-wrap.mp .mp-l-0 { left: var(--mp-gap); }
+.viewer-wrap.mp .mp-l-1 { left: calc(2 * var(--mp-gap) + var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-0 { right: var(--mp-gap); }
+.viewer-wrap.mp .mp-r-1 { right: calc(2 * var(--mp-gap) + var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded { width: auto !important; }
+.viewer-wrap.mp .mp-expanded.mp-before-0 { left: var(--mp-gap); }
+.viewer-wrap.mp .mp-expanded.mp-before-1 { left: calc(2 * var(--mp-gap) + var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-before-2 { left: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-after-0 { right: var(--mp-gap); }
+.viewer-wrap.mp .mp-expanded.mp-after-1 { right: calc(2 * var(--mp-gap) + var(--mp-strip)); }
+.viewer-wrap.mp .mp-expanded.mp-after-2 { right: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp .tree-resize,
+.viewer-wrap.mp .props-resize { display: none; }
+
+/* Collapsed tree / properties: only the strip head (Expand + vertical title). */
+.viewer-wrap.mp .ifctree-panel.mp-collapsed > :not(.mp-strip-head),
+.viewer-wrap.mp .props-panel.mp-collapsed > :not(.mp-strip-head) { display: none; }
+.mp-strip-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  overflow: hidden;
+}
+.mp-expand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: calc(var(--mp-strip) - 12px);
+  padding: 8px 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--mp-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mp-expand span,
+.mp-strip-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+.mp-strip-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+/* Toolbar: expanded = labelled buttons wrapping in rows; collapsed = a column
+   of icons under the Expand button. Its menus open over the upper area. */
+.viewer-wrap.mp .vtoolbar {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-y: auto;
+}
+.viewer-wrap.mp .vtoolbar.mp-collapsed {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 6px;
+}
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn > span:not(.ic),
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn .caret,
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vsep { display: none; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed .vbtn { padding: 8px; }
+.viewer-wrap.mp .vmenu {
+  position: fixed;
+  top: calc(var(--mp-wrap-top, 64px) + 2 * var(--mp-gap));
+  left: var(--mp-gap);
+  right: var(--mp-gap);
+  min-width: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+/* IDS / BCF docks: over the upper area. */
+.viewer-wrap.mp .ids-panel {
+  position: absolute;
+  top: var(--mp-gap);
+  left: var(--mp-gap);
+  right: var(--mp-gap);
+  width: auto;
+  height: calc(var(--mp-top) - var(--mp-gap));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  z-index: 6;
+}
+/* The strip's Expand button must not be squeezed by the icon column below it. */
+.viewer-wrap.mp .vtoolbar.mp-collapsed > * { flex-shrink: 0; }
+
+/* Phone: the top bar wraps onto a second row instead of running off-screen. */
+@media (max-width: 700px) {
+  .topbar {
+    height: auto;
+    min-height: 58px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 6px 10px;
+  }
+  .topbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+}
+
+/* Bar between the top panels and the 3D view: drag it to change the split. */
+.viewer-wrap.mp { row-gap: 16px; }
+.mp-divider {
+  position: absolute;
+  left: var(--mp-gap);
+  right: var(--mp-gap);
+  top: var(--mp-top); /* exactly the row gap below the panels */
+  height: 16px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  touch-action: none; /* the drag must not scroll the page */
+}
+.mp-divider-grip {
+  width: 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mp-blue);
+  opacity: 0.55;
+}
+.mp-divider:hover .mp-divider-grip,
+.mp-divider:active .mp-divider-grip { opacity: 1; }

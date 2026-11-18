@@ -3,6 +3,7 @@ import type { IfcDataStore } from "@ifc-lite/parser";
 import type { ViewerCameraState } from "@ifc-lite/bcf";
 import type { Theme } from "../hooks/useTheme";
 import { usePersistedNumber } from "../hooks/usePersistedNumber";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { GeorefInfo } from "../ifc/editor";
 import { detectSchema, type IfcSchema } from "../ifc/store";
 import { IfcEditor, type SelectionDetail } from "../ifc/editor";
@@ -291,6 +292,59 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Model-info panel is open by default on load; it can be closed (×) or toggled
   // from the toolbar. A selection still takes over the right panel with props.
   const [showInfo, setShowInfo] = useState(true);
+  // Phone in portrait: the three top panels (tree, tools, properties) share the
+  // upper part of the screen — the chosen one expanded, the others collapsed to
+  // strips on the left (the tools strip keeps its icons) — and the 3D view gets
+  // the lower part. Selecting an element brings the properties forward.
+  const isPortraitPhone = useMediaQuery("(max-width: 700px) and (orientation: portrait)");
+  const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props">("tree");
+  // Share of the viewer height the top panels take (%), set by dragging the bar
+  // between them and the 3D view; remembered.
+  const [mpTop, setMpTop] = usePersistedNumber("mobileTopPct", 46);
+  const startMpResize = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    e.preventDefault();
+    const bar = e.currentTarget;
+    try { bar.setPointerCapture(e.pointerId); } catch { /* pointer already gone: moves still reach the bar */ }
+    const move = (ev: PointerEvent) => {
+      const r = wrap.getBoundingClientRect();
+      const pct = ((ev.clientY - r.top) / r.height) * 100;
+      setMpTop(Math.round(Math.min(80, Math.max(15, pct))));
+    };
+    const up = () => {
+      bar.removeEventListener("pointermove", move);
+      bar.removeEventListener("pointerup", up);
+      bar.removeEventListener("pointercancel", up);
+    };
+    bar.addEventListener("pointermove", move);
+    bar.addEventListener("pointerup", up);
+    bar.addEventListener("pointercancel", up);
+  };
+  // The tool menus open as a fixed overlay under the (wrapping) top bar; track
+  // where the viewer starts so they line up with the panels.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isPortraitPhone) return;
+    const place = () => {
+      const el = wrapRef.current;
+      if (el) el.style.setProperty("--mp-wrap-top", `${el.getBoundingClientRect().top}px`);
+    };
+    place();
+    // The top bar's height changes when it wraps or gains a button (Download).
+    const ro = new ResizeObserver(place);
+    const bar = document.querySelector(".topbar");
+    if (bar) ro.observe(bar);
+    window.addEventListener("resize", place);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [isPortraitPhone]);
+  useEffect(() => {
+    if (isPortraitPhone && propGroups) setMobilePanel("props");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propGroups]);
   // Per-element colors from the data-table "color by group" toggle (null = off).
   // Takes priority over the IDS red-paint when both could apply.
   const [groupColorMap, setGroupColorMap] = useState<Map<number, Rgba> | null>(null);
@@ -1368,6 +1422,32 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
   const selArr = () => [...selectedIds];
 
+  // Portrait-phone layout: the panels keep their order (tree, tools, properties);
+  // the expanded one takes the room left between the strips, so a strip after
+  // it sits on the right. CSS (.viewer-wrap.mp) does the placing from these
+  // classes: mp-l-<n> = strip n from the left, mp-r-<n> = strip n from the
+  // right, mp-before-<n>/mp-after-<n> = strips on each side of the expanded one.
+  type MobilePanel = "tree" | "tools" | "props";
+  const mpOrder = (["tree", "tools", "props"] as MobilePanel[]).filter((k) => k !== "props" || !!(propGroups || showInfo));
+  const mpActive: MobilePanel = mpOrder.includes(mobilePanel) ? mobilePanel : "tree";
+  const mpAt = mpOrder.indexOf(mpActive);
+  const mpClass = (k: MobilePanel) => {
+    if (!isPortraitPhone) return "";
+    const i = mpOrder.indexOf(k);
+    if (k === mpActive) return ` mp-expanded mp-before-${mpAt} mp-after-${mpOrder.length - 1 - mpAt}`;
+    return i < mpAt ? ` mp-collapsed mp-l-${i}` : ` mp-collapsed mp-r-${mpOrder.length - 1 - i}`;
+  };
+  const mpHead = (k: MobilePanel, title?: string) =>
+    isPortraitPhone && k !== mpActive ? (
+      <div className="mp-strip-head">
+        <button type="button" className="mp-expand" onClick={() => setMobilePanel(k)} title={t("viewer.mobileExpand")}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
+          <span>{t("viewer.mobileExpand")}</span>
+        </button>
+        {title && <span className="mp-strip-title">{title}</span>}
+      </div>
+    ) : null;
+
   if (!hasWebGPU) {
     return (
       <div className="viewer-wrap">
@@ -1381,8 +1461,18 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   }
 
   return (
-    <div className="viewer-wrap">
-      <aside className="ifctree-panel" style={{ width: treeWidth }} data-tour="tree">
+    <div
+      className={"viewer-wrap" + (isPortraitPhone ? " mp" : "")}
+      ref={wrapRef}
+      style={isPortraitPhone ? ({ "--mp-top": `${mpTop}%` } as CSSProperties) : undefined}
+    >
+      {isPortraitPhone && (
+        <div className="mp-divider" onPointerDown={startMpResize} title={t("viewer.mobileResize")} role="separator" aria-orientation="horizontal">
+          <span className="mp-divider-grip" />
+        </div>
+      )}
+      <aside className={"ifctree-panel" + mpClass("tree")} style={{ width: treeWidth }} data-tour="tree">
+        {mpHead("tree", t("viewer.mobileTree"))}
         <ModelsPanel
           models={modelList}
           busy={busyAdd}
@@ -1418,7 +1508,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       </aside>
 
       <div className="viewer-main" ref={mainRef}>
-        <div className="vtoolbar">
+        <div className={"vtoolbar" + mpClass("tools")}>
+          {mpHead("tools")}
           <Dropdown label={t("viewer.measure")} icon={<ToolIcon kind="measure" />} active={measureMode !== "none"} dataTour="measure">
             <button className={"vmenu-item" + (measureMode === "length" ? " active" : "")} onClick={() => chooseMeasure("length")}><span className="ic"><ToolIcon kind="distance" /></span> {t("viewer.measureLength")}</button>
             <button className={"vmenu-item" + (measureMode === "point" ? " active" : "")} onClick={() => chooseMeasure("point")}><span className="ic"><ToolIcon kind="point" /></span> {t("viewer.measurePoint")}</button>
@@ -1708,7 +1799,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       </div>
 
       {(propGroups || showInfo) && (
-      <aside className="props-panel" style={{ width: propsWidth }}>
+      <aside className={"props-panel" + mpClass("props")} style={{ width: propsWidth }}>
+        {mpHead("props", propGroups ? t("viewer.propsTitle") : t("viewer.modelInfoTitle"))}
         <div className="props-resize" onPointerDown={startPropsResize} title={t("viewer.resize")} />
         <div className="props-head">
           <span>{propGroups ? t("viewer.propsTitle") : t("viewer.modelInfoTitle")}</span>
