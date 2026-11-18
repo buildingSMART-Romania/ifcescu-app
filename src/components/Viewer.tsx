@@ -1633,6 +1633,10 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       <div className="viewer-main" ref={mainRef}>
         <div className={"vtoolbar" + mpClass("tools")}>
           {mpHead("tools")}
+          {/* The tool buttons. display: contents on desktop (laid out by the
+              toolbar as before); on a portrait phone with the tools collapsed
+              it's the icon column that scrolls under the Expand button. */}
+          <div className="vtools">
           <Dropdown label={t("viewer.measure")} icon={<ToolIcon kind="measure" />} active={measureMode !== "none"} dataTour="measure">
             <button className={"vmenu-item" + (measureMode === "length" ? " active" : "")} onClick={() => chooseMeasure("length")}><span className="ic"><ToolIcon kind="distance" /></span> {t("viewer.measureLength")}</button>
             <button className={"vmenu-item" + (measureMode === "point" ? " active" : "")} onClick={() => chooseMeasure("point")}><span className="ic"><ToolIcon kind="point" /></span> {t("viewer.measurePoint")}</button>
@@ -1765,6 +1769,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             <span className="ic"><ToolIcon kind="info" /></span>
             <span>{t("viewer.info")}</span>
           </button>
+          </div>
         </div>
 
         <div className="viewer-host" ref={hostRef} style={{ position: "relative" }} data-tour="canvas">

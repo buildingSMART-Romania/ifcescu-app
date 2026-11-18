@@ -3739,3 +3739,25 @@ table.summary td.k {
     flex: 0 0 auto;
   }
 }
+
+/* Tool buttons wrapper: transparent to layout everywhere ... */
+.vtools { display: contents; }
+/* ... except the collapsed tools strip on a portrait phone: the Expand button
+   stays put and only the icon column below it scrolls (thin, vertical only),
+   so the scrollbar neither starts beside the button nor widens the strip. */
+.viewer-wrap.mp .vtoolbar.mp-collapsed { overflow: hidden; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar { width: 4px; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.viewer-wrap.mp .vtoolbar.mp-collapsed > .vtools > * { flex-shrink: 0; }
