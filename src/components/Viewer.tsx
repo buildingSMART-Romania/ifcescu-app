@@ -1841,35 +1841,35 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <button className={"vbtn" + (isBottom("filter") ? " active" : "")} onClick={() => toggleBottom("filter")} title={t("filter.title")} data-tour="filter">
+          <button className={"vbtn vbtn-c" + (isBottom("filter") ? " active" : "")} style={panelColor("filter")} onClick={() => toggleBottom("filter")} title={t("filter.title")} data-tour="filter">
             <span className="ic"><ToolIcon kind="filter" /></span>
             <span>{t("filter.tab")}</span>
           </button>
 
-          <button className={"vbtn" + (idsOpen ? " active" : "")} onClick={() => setIdsOpen((o) => !o)} data-tour="ids">
+          <button className={"vbtn vbtn-c" + (idsOpen ? " active" : "")} style={panelColor("ids")} onClick={() => setIdsOpen((o) => !o)} data-tour="ids">
             <span className="ic"><ToolIcon kind="ids" /></span>
             <span>IDS</span>
           </button>
 
-          <button className={"vbtn" + (bcfOpen ? " active" : "")} onClick={() => setBcfOpen((o) => !o)} data-tour="bcf">
+          <button className={"vbtn vbtn-c" + (bcfOpen ? " active" : "")} style={panelColor("bcf")} onClick={() => setBcfOpen((o) => !o)} data-tour="bcf">
             <span className="ic"><ToolIcon kind="bcf" /></span>
             <span>BCF</span>
           </button>
 
-          <button className={"vbtn" + (isBottom("table") ? " active" : "")} onClick={() => toggleBottom("table")} data-tour="table">
+          <button className={"vbtn vbtn-c" + (isBottom("table") ? " active" : "")} style={panelColor("table")} onClick={() => toggleBottom("table")} data-tour="table">
             <span className="ic"><ToolIcon kind="table" /></span>
             <span>{t("dataTable.tab")}</span>
           </button>
 
           {analyticsEnabled && (
-            <button className={"vbtn" + (isBottom("analytics") ? " active" : "")} onClick={() => toggleBottom("analytics")} title={t("analytics.title")}>
+            <button className={"vbtn vbtn-c" + (isBottom("analytics") ? " active" : "")} style={panelColor("analytics")} onClick={() => toggleBottom("analytics")} title={t("analytics.title")}>
               <span className="ic"><ToolIcon kind="analytics" /></span>
               <span>{t("analytics.tab")}</span>
             </button>
           )}
 
 
-          <button className={"vbtn" + (isBottom("clash") ? " active" : "")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")} data-tour="clash">
+          <button className={"vbtn vbtn-c" + (isBottom("clash") ? " active" : "")} style={panelColor("clash")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")} data-tour="clash">
             <span className="ic"><ToolIcon kind="clash" /></span>
             <span>{t("clash.tab")}</span>
           </button>
@@ -2093,11 +2093,13 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
 /** "Expand" button colours of the extra panels on a portrait phone (the three
  *  main panels keep the default blue). */
+/** A toolbar button in its panel colour (icon tinted; filled when the panel is open). */
+const panelColor = (k: keyof typeof MP_COLORS) => ({ "--vb-c": MP_COLORS[k] }) as CSSProperties;
 const MP_COLORS = {
   ids: "#2f9e6b", // the IDS report's "passed" green
   bcf: "#e6007e", // buildingSMART magenta
-  clash: "#7c3aed", // purple
-  table: "#111111", // black
+  clash: "#dc2626", // red
+  table: "var(--mp-table)", // black (grey in the dark theme, to stay visible)
   filter: "#0fa3b1", // turquoise
   analytics: "#f59e0b", // amber
 };

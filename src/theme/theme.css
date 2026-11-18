@@ -4107,3 +4107,19 @@ html, body { touch-action: pan-x pan-y; }
     transform: rotate(180deg);
   }
 }
+
+/* Phone: the Clashes panel scrolls as one (title, options, sets and results),
+   like the tree - in a narrow panel the fixed top part filled the height and
+   left the scrolling result list no room at all. */
+.viewer-wrap.mp .mp-panel .clash-dock { overflow-y: auto; overscroll-behavior: contain; }
+.viewer-wrap.mp .mp-panel .clash-dock > * { flex-shrink: 0; }
+.viewer-wrap.mp .mp-panel .clash-dock > .clash-list { flex: none; overflow: visible; }
+
+/* Panel buttons (Filter, IDS, BCF, Table, Analytics, Clashes) in their panel
+   colour - the same as the Expand buttons on a phone: tinted icon, filled
+   when the panel is open. */
+.vbtn.vbtn-c .ic { color: var(--vb-c); }
+.vbtn.vbtn-c.active { background: var(--vb-c); border-color: var(--vb-c); color: #fff; }
+.vbtn.vbtn-c.active .ic { color: #fff; }
+:root { --mp-table: #111111; }
+:root[data-theme="dark"] { --mp-table: #71717a; }
