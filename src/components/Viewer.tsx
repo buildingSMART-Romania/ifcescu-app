@@ -310,21 +310,22 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // strips on the left (the tools strip keeps its icons) — and the 3D view gets
   // the lower part. Selecting an element brings the properties forward.
   const isPortraitPhone = useMediaQuery("(max-width: 700px) and (orientation: portrait)");
-  // Phone turned sideways: the same panels, rotated 90° - they share the LEFT
-  // part of the screen (strips stacked top/bottom) and the 3D view the right.
+  // Phone turned sideways: the same panels side by side on the LEFT (collapsed
+  // ones as vertical strips), full height; the 3D view takes the rest. The panel
+  // area is as wide as its strips plus the expanded panel, so closing or
+  // collapsing panels gives the room back to the 3D view.
   const isLandscapePhone = useMediaQuery("(max-height: 500px) and (max-width: 1000px) and (orientation: landscape)");
   const isPhone = isPortraitPhone || isLandscapePhone;
   const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props" | "ids" | "bcf" | BottomDock>("tree");
-  // Room along the strips (viewport width in portrait, viewer height in
-  // landscape), for sizing the collapsed strips (updated with the layout).
+  // Room along the strips (viewport / viewer width), for sizing the collapsed
+  // strips (updated with the layout).
   const [mpVw, setMpVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 375));
-  // Share of the viewer the panels take (%: of the height in portrait, of the
-  // width in landscape), set by dragging the bar between them and the 3D view;
-  // remembered per orientation.
-  const [mpTopPortrait, setMpTopPortrait] = usePersistedNumber("mobileTopPct", 46);
-  const [mpLeftLandscape, setMpLeftLandscape] = usePersistedNumber("mobileLeftPct", 50);
-  const mpTop = isLandscapePhone ? mpLeftLandscape : mpTopPortrait;
-  const setMpTop = isLandscapePhone ? setMpLeftLandscape : setMpTopPortrait;
+  // Portrait: share of the viewer height the top panels take (%). Landscape:
+  // width of the expanded panel (px). Both set by dragging the bar between the
+  // panels and the 3D view; remembered.
+  const [mpTop, setMpTop] = usePersistedNumber("mobileTopPct", 46);
+  const [mpLandW, setMpLandW] = usePersistedNumber("mobileLandPanelPx", 300);
+  const mpStripsPxRef = useRef(0); // landscape: room the strips take left of/beside the panel
   const startMpResize = (e: ReactPointerEvent<HTMLDivElement>) => {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -333,7 +334,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     try { bar.setPointerCapture(e.pointerId); } catch { /* pointer already gone: moves still reach the bar */ }
     const move = (ev: PointerEvent) => {
       const r = wrap.getBoundingClientRect();
-      const pct = isLandscapePhone ? ((ev.clientX - r.left) / r.width) * 100 : ((ev.clientY - r.top) / r.height) * 100;
+      if (isLandscapePhone) {
+        setMpLandW(Math.round(Math.max(160, ev.clientX - r.left - mpStripsPxRef.current)));
+        return;
+      }
+      const pct = ((ev.clientY - r.top) / r.height) * 100;
       setMpTop(Math.round(Math.min(80, Math.max(15, pct))));
     };
     const up = () => {
@@ -353,7 +358,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     const place = () => {
       const el = wrapRef.current;
       if (el) el.style.setProperty("--mp-wrap-top", `${el.getBoundingClientRect().top}px`);
-      setMpVw(isLandscapePhone ? el?.clientHeight || window.innerHeight : window.innerWidth);
+      setMpVw(isLandscapePhone ? el?.clientWidth || window.innerWidth : window.innerWidth);
     };
     place();
     // The top bar's height changes when it wraps or gains a button (Download).
@@ -1641,12 +1646,18 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Strip width from the screen width, so the expanded panel keeps ~150px however
   // many panels share the row (54px when there's room, never under 24px).
   const mpStrips = mpOrder.length - 1;
-  // Landscape: strips are rows (40px, never under 26px; the panel keeps ~110px).
+  // Landscape: 44px strips; the panel area (strips + expanded panel) leaves the
+  // 3D view at least 220px, shrinking the panel (to 160px) and then the strips.
+  const MP_GAP = 6;
+  const mpLandRoom = mpVw - 220 - 16; // minus the 3D minimum and the divider
   const mpStrip = isLandscapePhone
-    ? mpStrips ? Math.max(26, Math.min(40, Math.floor((mpVw - 2 * 6 - mpStrips * 6 - 110) / mpStrips))) : 40
+    ? mpStrips ? Math.max(28, Math.min(44, Math.floor((mpLandRoom - MP_GAP - 160) / mpStrips - MP_GAP))) : 44
     : mpStrips
       ? Math.max(24, Math.min(54, Math.floor((mpVw - 2 * 6 - mpStrips * 6 - 150) / mpStrips)))
       : 54;
+  mpStripsPxRef.current = MP_GAP + mpStrips * (mpStrip + MP_GAP);
+  const mpExpW = Math.max(160, Math.min(mpLandW, mpLandRoom - mpStripsPxRef.current));
+  const mpArea = mpStripsPxRef.current + mpExpW;
   const mpClass = (k: MobilePanel) => {
     if (!isPhone) return "";
     const i = mpOrder.indexOf(k);
@@ -1687,7 +1698,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     <div
       className={"viewer-wrap" + (isPhone ? " mp" : "") + (isLandscapePhone ? " mp-land" : "")}
       ref={wrapRef}
-      style={isPhone ? ({ "--mp-top": `${mpTop}%`, "--mp-strip": `${mpStrip}px` } as CSSProperties) : undefined}
+      style={isPhone ? ({ "--mp-top": `${mpTop}%`, "--mp-strip": `${mpStrip}px`, "--mp-area": `${mpArea}px`, "--mp-exp": `${mpExpW}px` } as CSSProperties) : undefined}
     >
       {isPhone && (
         <div className="mp-divider" onPointerDown={startMpResize} title={t("viewer.mobileResize")} role="separator" aria-orientation={isLandscapePhone ? "vertical" : "horizontal"}>
