@@ -4123,3 +4123,20 @@ html, body { touch-action: pan-x pan-y; }
 .vbtn.vbtn-c.active .ic { color: #fff; }
 :root { --mp-table: #111111; }
 :root[data-theme="dark"] { --mp-table: #71717a; }
+
+/* Phone: the Table and IDS/BCF headers wrap (title on one line, the action
+   buttons under it) instead of running out of a narrow panel, where they were
+   cut off and could not be scrolled to. */
+.viewer-wrap.mp .mp-panel .ids-panel,
+.viewer-wrap.mp .mp-panel .datatable-panel { min-width: 0; }
+.viewer-wrap.mp .mp-panel :is(.ids-head, .datatable-head) {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.viewer-wrap.mp .mp-panel :is(.ids-head-title, .datatable-title) { white-space: nowrap; }
+.viewer-wrap.mp .mp-panel :is(.ids-head-actions, .datatable-actions) {
+  flex-wrap: wrap;
+  margin-left: auto;
+  min-width: 0;
+}
