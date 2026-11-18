@@ -74,6 +74,9 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* the VISIBLE height: 100vh ignores a browser bar at the bottom (Chrome on
+     Android with the address bar below), which then covers the bottom toolbar */
+  height: 100dvh;
   overflow: hidden;
 }
 .topbar {
@@ -1000,6 +1003,7 @@ table.summary td.k {
   width: 520px;
   max-width: 100%;
   max-height: 85vh;
+  max-height: 85dvh;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2855,7 +2859,9 @@ table.summary td.k {
   max-width: 1200px;
   width: 96vw;
   height: 92vh;
+  height: 92dvh;
   max-height: 92vh;
+  max-height: 92dvh;
 }
 .idse-toolbar {
   display: flex;
@@ -3642,6 +3648,7 @@ table.summary td.k {
   right: 0;
   min-width: 0;
   max-height: 65vh;
+  max-height: 65dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: 16px 16px 0 0;
