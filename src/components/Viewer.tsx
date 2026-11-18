@@ -310,12 +310,21 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // strips on the left (the tools strip keeps its icons) — and the 3D view gets
   // the lower part. Selecting an element brings the properties forward.
   const isPortraitPhone = useMediaQuery("(max-width: 700px) and (orientation: portrait)");
+  // Phone turned sideways: the same panels, rotated 90° - they share the LEFT
+  // part of the screen (strips stacked top/bottom) and the 3D view the right.
+  const isLandscapePhone = useMediaQuery("(max-height: 500px) and (max-width: 1000px) and (orientation: landscape)");
+  const isPhone = isPortraitPhone || isLandscapePhone;
   const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props" | "ids" | "bcf" | BottomDock>("tree");
-  // Viewport width, for sizing the collapsed strips (updated with the layout).
+  // Room along the strips (viewport width in portrait, viewer height in
+  // landscape), for sizing the collapsed strips (updated with the layout).
   const [mpVw, setMpVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 375));
-  // Share of the viewer height the top panels take (%), set by dragging the bar
-  // between them and the 3D view; remembered.
-  const [mpTop, setMpTop] = usePersistedNumber("mobileTopPct", 46);
+  // Share of the viewer the panels take (%: of the height in portrait, of the
+  // width in landscape), set by dragging the bar between them and the 3D view;
+  // remembered per orientation.
+  const [mpTopPortrait, setMpTopPortrait] = usePersistedNumber("mobileTopPct", 46);
+  const [mpLeftLandscape, setMpLeftLandscape] = usePersistedNumber("mobileLeftPct", 50);
+  const mpTop = isLandscapePhone ? mpLeftLandscape : mpTopPortrait;
+  const setMpTop = isLandscapePhone ? setMpLeftLandscape : setMpTopPortrait;
   const startMpResize = (e: ReactPointerEvent<HTMLDivElement>) => {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -324,7 +333,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     try { bar.setPointerCapture(e.pointerId); } catch { /* pointer already gone: moves still reach the bar */ }
     const move = (ev: PointerEvent) => {
       const r = wrap.getBoundingClientRect();
-      const pct = ((ev.clientY - r.top) / r.height) * 100;
+      const pct = isLandscapePhone ? ((ev.clientX - r.left) / r.width) * 100 : ((ev.clientY - r.top) / r.height) * 100;
       setMpTop(Math.round(Math.min(80, Math.max(15, pct))));
     };
     const up = () => {
@@ -340,11 +349,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // where the viewer starts so they line up with the panels.
   const wrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!isPortraitPhone) return;
+    if (!isPhone) return;
     const place = () => {
       const el = wrapRef.current;
       if (el) el.style.setProperty("--mp-wrap-top", `${el.getBoundingClientRect().top}px`);
-      setMpVw(window.innerWidth);
+      setMpVw(isLandscapePhone ? el?.clientHeight || window.innerHeight : window.innerWidth);
     };
     place();
     // The top bar's height changes when it wraps or gains a button (Download).
@@ -356,7 +365,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       ro.disconnect();
       window.removeEventListener("resize", place);
     };
-  }, [isPortraitPhone]);
+  }, [isPhone, isLandscapePhone]);
 
   // Touch: a two-finger pinch on a panel zooms THAT panel's content (the page
   // itself never pinch-zooms — see touch-action in theme.css — so menus keep
@@ -398,7 +407,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     };
   }, []);
   useEffect(() => {
-    if (isPortraitPhone && propGroups) setMobilePanel("props");
+    if (isPhone && propGroups) setMobilePanel("props");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propGroups]);
   // Per-element colors from the data-table "color by group" toggle (null = off).
@@ -740,11 +749,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Portrait phone: a dock that opens (IDS/BCF, filter/table/clashes/analytics)
   // becomes the expanded panel of the upper row.
   useEffect(() => {
-    if (isPortraitPhone && idsOpen) setMobilePanel("ids");
+    if (isPhone && idsOpen) setMobilePanel("ids");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsOpen]);
   useEffect(() => {
-    if (isPortraitPhone && bcfOpen) setMobilePanel("bcf");
+    if (isPhone && bcfOpen) setMobilePanel("bcf");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bcfOpen]);
   // The bottom panel just opened (last in the list, and new) takes the front.
@@ -752,7 +761,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   useEffect(() => {
     const added = bottomOpen.find((d) => !prevBottomRef.current.includes(d));
     prevBottomRef.current = bottomOpen;
-    if (isPortraitPhone && added) setMobilePanel(added);
+    if (isPhone && added) setMobilePanel(added);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bottomOpen]);
 
@@ -1632,11 +1641,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Strip width from the screen width, so the expanded panel keeps ~150px however
   // many panels share the row (54px when there's room, never under 24px).
   const mpStrips = mpOrder.length - 1;
-  const mpStrip = mpStrips
-    ? Math.max(24, Math.min(54, Math.floor((mpVw - 2 * 6 - mpStrips * 6 - 150) / mpStrips)))
-    : 54;
+  // Landscape: strips are rows (40px, never under 26px; the panel keeps ~110px).
+  const mpStrip = isLandscapePhone
+    ? mpStrips ? Math.max(26, Math.min(40, Math.floor((mpVw - 2 * 6 - mpStrips * 6 - 110) / mpStrips))) : 40
+    : mpStrips
+      ? Math.max(24, Math.min(54, Math.floor((mpVw - 2 * 6 - mpStrips * 6 - 150) / mpStrips)))
+      : 54;
   const mpClass = (k: MobilePanel) => {
-    if (!isPortraitPhone) return "";
+    if (!isPhone) return "";
     const i = mpOrder.indexOf(k);
     if (k === mpActive) return ` mp-expanded mp-before-${mpAt} mp-after-${mpOrder.length - 1 - mpAt}`;
     return i < mpAt ? ` mp-collapsed mp-l-${i}` : ` mp-collapsed mp-r-${mpOrder.length - 1 - i}`;
@@ -1644,7 +1656,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // Collapsed strip head: a red ✕ (closes the panel — every panel but the tree
   // and the tools can be closed) above the Expand button, then the title.
   const mpHead = (k: MobilePanel, title?: string, color?: string, onClose?: () => void) =>
-    isPortraitPhone && k !== mpActive ? (
+    isPhone && k !== mpActive ? (
       <div className="mp-strip-head">
         {onClose && (
           <button type="button" className="mp-close" onClick={onClose} title={t("common.close")} aria-label={t("common.close")}>
@@ -1673,12 +1685,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
   return (
     <div
-      className={"viewer-wrap" + (isPortraitPhone ? " mp" : "")}
+      className={"viewer-wrap" + (isPhone ? " mp" : "") + (isLandscapePhone ? " mp-land" : "")}
       ref={wrapRef}
-      style={isPortraitPhone ? ({ "--mp-top": `${mpTop}%`, "--mp-strip": `${mpStrip}px` } as CSSProperties) : undefined}
+      style={isPhone ? ({ "--mp-top": `${mpTop}%`, "--mp-strip": `${mpStrip}px` } as CSSProperties) : undefined}
     >
-      {isPortraitPhone && (
-        <div className="mp-divider" onPointerDown={startMpResize} title={t("viewer.mobileResize")} role="separator" aria-orientation="horizontal">
+      {isPhone && (
+        <div className="mp-divider" onPointerDown={startMpResize} title={t("viewer.mobileResize")} role="separator" aria-orientation={isLandscapePhone ? "vertical" : "horizontal"}>
           <span className="mp-divider-grip" />
         </div>
       )}
@@ -1886,7 +1898,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
               )}
             </div>
           )}
-          {!isPortraitPhone && hostDock}
+          {!isPhone && hostDock}
           {ready && settings.viewer.navCube && (
             <NavCube
               getTransform={() => engineRef.current?.cubeMatrix() ?? ""}
@@ -1955,7 +1967,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
           )}
         </div>
 
-        {!isPortraitPhone && tableDock}
+        {!isPhone && tableDock}
       </div>
 
       {(propGroups || showInfo) && (
@@ -2023,7 +2035,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
       {/* Desktop: IDS and BCF share the right column, stacked when both are
           open, so the 3D view keeps its width. */}
-      {!isPortraitPhone && (idsDock || bcfDock) && (
+      {!isPhone && (idsDock || bcfDock) && (
         <div className="side-docks">
           {idsDock}
           {bcfDock}
@@ -2032,19 +2044,19 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
       {/* Phone, portrait: IDS, BCF and each bottom panel (filter, table,
           clashes, analytics) join the upper row as panels of their own. */}
-      {isPortraitPhone && idsDock && (
+      {isPhone && idsDock && (
         <aside className={"mp-panel" + mpClass("ids")}>
           {mpHead("ids", "IDS", MP_COLORS.ids, () => setIdsOpen(false))}
           {idsDock}
         </aside>
       )}
-      {isPortraitPhone && bcfDock && (
+      {isPhone && bcfDock && (
         <aside className={"mp-panel" + mpClass("bcf")}>
           {mpHead("bcf", "BCF", MP_COLORS.bcf, () => setBcfOpen(false))}
           {bcfDock}
         </aside>
       )}
-      {isPortraitPhone && bottomPanels.map((p) => (
+      {isPhone && bottomPanels.map((p) => (
         <aside key={p.k} className={"mp-panel" + mpClass(p.k)}>
           {mpHead(p.k, p.title, p.color, () => closeBottom(p.k))}
           {p.el}

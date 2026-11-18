@@ -3955,3 +3955,154 @@ html, body { touch-action: pan-x pan-y; }
 /* Very narrow strips (many panels open): tighter head. */
 .viewer-wrap.mp .mp-strip-head { gap: 6px; }
 .viewer-wrap.mp .mp-expand { width: calc(var(--mp-strip) - 8px); }
+
+/* --- Phone, landscape (.viewer-wrap.mp.mp-land) ---------------------------
+   The portrait layout turned 90 degrees: the panels share the LEFT part
+   (--mp-top is now a share of the width), collapsed ones as horizontal strips
+   stacked at the top/bottom, the chosen one filling the height between them;
+   the 3D view takes the right part. No horizontal padding, so the grid column
+   and the panel % widths share one base (as rows do in portrait). */
+.viewer-wrap.mp.mp-land {
+  grid-template-columns: var(--mp-top) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 0;
+  padding: 0;
+}
+.viewer-wrap.mp.mp-land > .viewer-main {
+  grid-row: 1;
+  grid-column: 2;
+  margin: var(--mp-gap) var(--mp-gap) var(--mp-gap) 0;
+}
+.viewer-wrap.mp.mp-land .ifctree-panel,
+.viewer-wrap.mp.mp-land .props-panel,
+.viewer-wrap.mp.mp-land .vtoolbar,
+.viewer-wrap.mp.mp-land .mp-panel {
+  left: var(--mp-gap);
+  right: auto;
+  top: auto;
+  bottom: auto;
+  width: calc(var(--mp-top) - var(--mp-gap)) !important;
+}
+.viewer-wrap.mp.mp-land .mp-collapsed { height: var(--mp-strip); }
+.viewer-wrap.mp.mp-land .mp-expanded { height: auto; }
+.viewer-wrap.mp.mp-land .mp-l-0, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-0 { top: var(--mp-gap); }
+.viewer-wrap.mp.mp-land .mp-r-0, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-0 { bottom: var(--mp-gap); }
+.viewer-wrap.mp.mp-land .mp-l-1, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-1 { top: calc(2 * var(--mp-gap) + 1 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-1, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-1 { bottom: calc(2 * var(--mp-gap) + 1 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-2, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-2 { top: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-2, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-2 { bottom: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-3, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-3 { top: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-3, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-3 { bottom: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-4, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-4 { top: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-4, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-4 { bottom: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-5, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-5 { top: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-5, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-5 { bottom: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-6, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-6 { top: calc(7 * var(--mp-gap) + 6 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-6, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-6 { bottom: calc(7 * var(--mp-gap) + 6 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-7, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-7 { top: calc(8 * var(--mp-gap) + 7 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-7, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-7 { bottom: calc(8 * var(--mp-gap) + 7 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-l-8, .viewer-wrap.mp.mp-land .mp-expanded.mp-before-8 { top: calc(9 * var(--mp-gap) + 8 * var(--mp-strip)); }
+.viewer-wrap.mp.mp-land .mp-r-8, .viewer-wrap.mp.mp-land .mp-expanded.mp-after-8 { bottom: calc(9 * var(--mp-gap) + 8 * var(--mp-strip)); }
+
+/* Strip head: a row - close, Expand, title. */
+.viewer-wrap.mp.mp-land .mp-strip-head {
+  flex-direction: row;
+  align-items: center;
+  height: 100%;
+  max-height: none;
+  max-width: 100%;
+  padding: 0 4px;
+  gap: 6px;
+}
+.viewer-wrap.mp.mp-land .mp-close { width: auto; height: calc(var(--mp-strip) - 10px); max-width: none; }
+.viewer-wrap.mp.mp-land .mp-expand {
+  flex-direction: row;
+  width: auto;
+  height: calc(var(--mp-strip) - 8px);
+  padding: 0 10px;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+.viewer-wrap.mp.mp-land .mp-expand span,
+.viewer-wrap.mp.mp-land .mp-strip-title { writing-mode: horizontal-tb; transform: none; }
+.viewer-wrap.mp.mp-land .mp-strip-title { min-width: 0; }
+/* Collapsed tools: a row of icons right of Expand (scrolls sideways). */
+.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed { flex-direction: row; padding: 0 4px 0 0; }
+.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed > .mp-strip-head { flex: 0 0 auto; width: auto; }
+.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed > .vtools {
+  flex-direction: row;
+  height: 100%;
+  width: auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed > .vtools::-webkit-scrollbar { height: 4px; width: auto; }
+.viewer-wrap.mp.mp-land .vtoolbar.mp-collapsed .vbtn { padding: 5px; }
+/* Divider: a vertical bar between the panels and the 3D view. */
+.viewer-wrap.mp.mp-land .mp-divider {
+  top: var(--mp-gap);
+  bottom: var(--mp-gap);
+  left: var(--mp-top);
+  right: auto;
+  width: 16px;
+  height: auto;
+  cursor: col-resize;
+}
+.viewer-wrap.mp.mp-land .mp-divider-grip { width: 6px; height: 56px; }
+/* Menus: a sheet from the bottom-left (over the panels), taller here. */
+.viewer-wrap.mp.mp-land .vmenu { right: auto; width: min(420px, 60vw); max-height: 92vh; max-height: 92dvh; border-radius: 0 16px 0 0; }
+
+/* Phone, landscape: the top bar becomes a narrow column on the left (logo
+   knot on top, icon-only actions under it), like the panels. */
+@media (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) {
+  .shell { flex-direction: row; }
+  .topbar {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    width: 46px;
+    height: auto;
+    min-height: 0;
+    padding: 6px 0;
+    gap: 6px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .topbar::-webkit-scrollbar { display: none; }
+  .topbar-tabs { display: none; }
+  .topbar .brand { flex: 0 0 auto; gap: 0; }
+  .topbar .brand-name { display: none; }
+  .topbar .brand-logo { width: 30px; overflow: hidden; flex: 0 0 auto; }
+  .topbar .brand-logo svg { height: 30px; width: auto; max-width: none; flex-shrink: 0; }
+  .topbar-right {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    margin: 0;
+    width: auto;
+    gap: 4px;
+  }
+  .topbar .btn-label { display: none; }
+  .topbar .toggle,
+  .topbar .help-toggle,
+  .topbar .settings-toggle,
+  .topbar .lang-toggle,
+  .topbar .theme-toggle {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .topbar .dl-btn {
+    flex-direction: column;
+    width: 34px;
+    height: auto;
+    padding: 4px 0;
+    gap: 2px;
+    flex: 0 0 auto;
+  }
+  .main { flex: 1; min-width: 0; }
+}
