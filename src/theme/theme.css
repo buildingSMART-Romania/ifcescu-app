@@ -4082,3 +4082,28 @@ html, body { touch-action: pan-x pan-y; }
   }
   .main { flex: 1; min-width: 0; }
 }
+
+/* Phone: keep the "IFCescu" name next to the logo knot, just smaller
+   (beside it in portrait, written upwards under it in the landscape column). */
+@media (max-width: 700px) {
+  .topbar .brand-name { display: inline; font-size: 0.78rem; flex-shrink: 0; }
+  /* ...and still one row: tighter gaps, 30px buttons */
+  .topbar { column-gap: 6px; }
+  .topbar .brand { gap: 4px; }
+  .topbar-right { gap: 3px; }
+  .topbar .toggle,
+  .topbar .help-toggle,
+  .topbar .settings-toggle,
+  .topbar .lang-toggle,
+  .topbar .theme-toggle { width: 30px; height: 30px; }
+  .topbar .dl-btn { height: 30px; padding: 0 7px; }
+}
+@media (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) {
+  .topbar .brand { flex-direction: column; gap: 4px; }
+  .topbar .brand-name {
+    display: inline;
+    font-size: 0.75rem;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+}
