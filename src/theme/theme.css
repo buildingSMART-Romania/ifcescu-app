@@ -3779,3 +3779,19 @@ table.summary td.k {
   min-height: 0;
 }
 .side-docks > .ids-panel + .ids-panel { border-top: 1px solid var(--border); }
+
+/* --- Touch ---------------------------------------------------------------
+   The 3D canvas handles every touch itself (one finger orbits, two fingers
+   pinch-zoom + pan). Without this the browser claims the gesture after a few
+   pixels to scroll/zoom the page and cancels it for the viewer - rotation
+   then only moved a degree or two per swipe. */
+.viewer-host canvas { touch-action: none; }
+/* The page itself never pinch-zooms (menus keep their size); scrolling still
+   works, and panels zoom their own content with two fingers (Viewer). */
+html, body { touch-action: pan-x pan-y; }
+/* Per-panel content zoom (set by a two-finger pinch on the panel). */
+.pz-zoomed > :not(.mp-strip-head):not(.tree-resize):not(.props-resize):not(.models-resize) {
+  zoom: var(--pz, 1);
+}
+/* A zoomed panel keeps its box: the enlarged content scrolls inside it. */
+.pz-zoomed { overflow: auto; }

@@ -10,6 +10,7 @@ import type { ViewerCameraState, ViewerBounds } from "@ifc-lite/bcf";
 import { parseStore } from "../ifc/store";
 import { cameraToBcf, cameraFromBcf, boundsToBcf } from "./bcfCoords";
 import { clipAwareRaycast, isClipped, type ClipPlane } from "./sectionClip";
+import { pinchOf, pinchStep, zoomDeltas, type Pinch, type Pt } from "./touch";
 import { t } from "../i18n";
 
 export interface RenderState {
@@ -627,16 +628,48 @@ export class ViewerEngine {
     let btn = -1;
     let lx = 0, ly = 0;
     let downX = 0, downY = 0;
+    // Touch: every finger on the canvas. One finger orbits (like the left mouse
+    // button); two fingers pinch-zoom around their midpoint and pan with it.
+    const touches = new Map<number, Pt>();
+    let pinch: Pinch | null = null;
+    const twoFingers = (): Pinch => {
+      const [a, b] = [...touches.values()];
+      return pinchOf(a, b);
+    };
 
     const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size >= 2) {
+          // A second finger turns the orbit into a pinch (and is never a click).
+          btn = -1;
+          pinch = twoFingers();
+          this.lastPressWasDrag = true;
+          try { cv.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+          return;
+        }
+      }
       btn = e.button;
       if (btn === 0) this.repinPivot();
       lx = e.clientX; ly = e.clientY;
       downX = e.clientX; downY = e.clientY;
       this.lastPressWasDrag = false;
-      cv.setPointerCapture(e.pointerId);
+      try { cv.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     };
     const onMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch" && touches.has(e.pointerId)) {
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size >= 2 && pinch) {
+          const cur = twoFingers();
+          const step = pinchStep(pinch, cur);
+          const r = cv.getBoundingClientRect();
+          for (const d of zoomDeltas(step.distFactor)) cam.zoom(d, false, cur.cx - r.left, cur.cy - r.top, r.width, r.height);
+          cam.pan(step.panDx * this.navSens.pan, step.panDy * this.navSens.pan, false);
+          pinch = cur;
+          this.renderer.requestRender();
+          return;
+        }
+      }
       if (btn < 0) return;
       if (!this.lastPressWasDrag && Math.hypot(e.clientX - downX, e.clientY - downY) > DRAG_PX) this.lastPressWasDrag = true;
       const dx = e.clientX - lx, dy = e.clientY - ly;
@@ -646,7 +679,9 @@ export class ViewerEngine {
       this.renderer.requestRender();
     };
     const onUp = (e: PointerEvent) => {
-      btn = -1;
+      btn = -1; // lifting any finger ends the gesture; a new touch starts the next one
+      touches.delete(e.pointerId);
+      if (touches.size < 2) pinch = null;
       try { cv.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     };
     const onWheel = (e: WheelEvent) => {
@@ -662,6 +697,7 @@ export class ViewerEngine {
     cv.addEventListener("pointerdown", onDown);
     cv.addEventListener("pointermove", onMove);
     cv.addEventListener("pointerup", onUp);
+    cv.addEventListener("pointercancel", onUp);
     cv.addEventListener("wheel", onWheel, { passive: false });
     cv.addEventListener("contextmenu", onCtx);
     cv.addEventListener("mousedown", onMouseDown);
@@ -669,6 +705,7 @@ export class ViewerEngine {
       cv.removeEventListener("pointerdown", onDown);
       cv.removeEventListener("pointermove", onMove);
       cv.removeEventListener("pointerup", onUp);
+      cv.removeEventListener("pointercancel", onUp);
       cv.removeEventListener("wheel", onWheel);
       cv.removeEventListener("contextmenu", onCtx);
       cv.removeEventListener("mousedown", onMouseDown);

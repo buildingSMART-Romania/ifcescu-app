@@ -4,6 +4,7 @@ import type { ViewerCameraState } from "@ifc-lite/bcf";
 import type { Theme } from "../hooks/useTheme";
 import { usePersistedNumber } from "../hooks/usePersistedNumber";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { panelZoom } from "../viewer/touch";
 import type { GeorefInfo } from "../ifc/editor";
 import { detectSchema, type IfcSchema } from "../ifc/store";
 import { IfcEditor, type SelectionDetail } from "../ifc/editor";
@@ -342,6 +343,46 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       window.removeEventListener("resize", place);
     };
   }, [isPortraitPhone]);
+
+  // Touch: a two-finger pinch on a panel zooms THAT panel's content (the page
+  // itself never pinch-zooms — see touch-action in theme.css — so menus keep
+  // their size). The panel stays put; its zoomed content scrolls inside it.
+  // The 3D canvas handles its own pinch (engine).
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const PANELS = ".ifctree-panel, .props-panel, .ids-panel, .an-dock, .datatable-panel, .mp-panel";
+    let g: { el: HTMLElement; startDist: number; startZoom: number } | null = null;
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>(PANELS) ?? null;
+      g = el && !el.classList.contains("mp-collapsed") ? { el, startDist: spread(e.touches), startZoom: Number(el.dataset.pz || 1) } : null;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!g || e.touches.length !== 2) return;
+      const z = panelZoom(g.startZoom, g.startDist, spread(e.touches));
+      g.el.dataset.pz = String(z);
+      g.el.style.setProperty("--pz", String(z));
+      g.el.classList.toggle("pz-zoomed", Math.abs(z - 1) > 0.02);
+      if (e.cancelable) e.preventDefault();
+    };
+    const onEnd = (e: TouchEvent) => { if (e.touches.length < 2) g = null; };
+    // iOS Safari: block its own page pinch (it doesn't always honour touch-action).
+    const noGesture = (e: Event) => e.preventDefault();
+    wrap.addEventListener("touchstart", onStart, { passive: true });
+    wrap.addEventListener("touchmove", onMove, { passive: false });
+    wrap.addEventListener("touchend", onEnd);
+    wrap.addEventListener("touchcancel", onEnd);
+    document.addEventListener("gesturestart", noGesture);
+    return () => {
+      wrap.removeEventListener("touchstart", onStart);
+      wrap.removeEventListener("touchmove", onMove);
+      wrap.removeEventListener("touchend", onEnd);
+      wrap.removeEventListener("touchcancel", onEnd);
+      document.removeEventListener("gesturestart", noGesture);
+    };
+  }, []);
   useEffect(() => {
     if (isPortraitPhone && propGroups) setMobilePanel("props");
     // eslint-disable-next-line react-hooks/exhaustive-deps
