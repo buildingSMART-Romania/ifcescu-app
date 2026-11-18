@@ -3795,3 +3795,44 @@ html, body { touch-action: pan-x pan-y; }
 }
 /* A zoomed panel keeps its box: the enlarged content scrolls inside it. */
 .pz-zoomed { overflow: auto; }
+
+/* Phone, portrait: "Models & tree" scrolls as one, like the Info panel - the
+   model list, tabs, search and the whole tree flow in the panel, instead of
+   the tree getting a ~100px window under them. */
+.viewer-wrap.mp .ifctree-panel.mp-expanded { overflow-y: auto; }
+.viewer-wrap.mp .ifctree-panel.mp-expanded > * { flex-shrink: 0; }
+.viewer-wrap.mp .ifctree-panel.mp-expanded .models-panel { max-height: none; }
+.viewer-wrap.mp .ifctree-panel.mp-expanded .ifctree-body,
+.viewer-wrap.mp .ifctree-panel.mp-expanded .ifctree {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+.viewer-wrap.mp .ifctree-panel.mp-expanded .models-resize { display: none; }
+
+/* Phone: logo and actions share ONE row (no empty half-row next to the logo):
+   a smaller logo without the "IFCescu" text, 32px buttons. Wraps only if a very
+   narrow screen can't fit it. */
+@media (max-width: 700px) {
+  .topbar { row-gap: 4px; padding: 6px 8px; }
+  .topbar .brand { gap: 6px; flex: 0 1 auto; min-width: 0; }
+  .topbar .brand-name { display: none; }
+  .topbar .brand-logo svg { height: 26px; }
+  .topbar-right { width: auto; margin-left: auto; justify-content: flex-end; gap: 4px; }
+  .topbar .toggle,
+  .topbar .help-toggle,
+  .topbar .settings-toggle,
+  .topbar .lang-toggle,
+  .topbar .theme-toggle { width: 32px; height: 32px; }
+  .topbar .dl-btn { height: 32px; padding: 0 8px; }
+}
+/* ...and on phones the logo shrinks to its buildingSMART knot (the left part of
+   the SVG), so it fits next to the seven action buttons. */
+@media (max-width: 700px) {
+  .topbar .brand-logo { width: 30px; overflow: hidden; flex: 0 0 auto; }
+  .topbar .brand-logo svg { height: 30px; max-width: none; }
+}
+@media (max-width: 700px) {
+  /* keep the SVG at its natural width; the 30px box crops it to the knot */
+  .topbar .brand-logo svg { flex-shrink: 0; width: auto; }
+}
