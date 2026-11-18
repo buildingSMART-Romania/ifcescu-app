@@ -45,11 +45,11 @@ describe("touch.zoomDeltas (camera.zoom calls for a distance factor)", () => {
 });
 
 describe("touch.panelZoom (panel content)", () => {
-  it("follows the spread from where the pinch started, clamped to 60%-300%", () => {
-    expect(panelZoom(1, 100, 150)).toBeCloseTo(1.5);
-    expect(panelZoom(1.5, 100, 50)).toBeCloseTo(0.75);
-    expect(panelZoom(1, 100, 1000)).toBe(3);
-    expect(panelZoom(1, 100, 10)).toBe(0.6);
+  it("follows the spread from where the pinch started, clamped to a readable 80%-150%", () => {
+    expect(panelZoom(1, 100, 120)).toBeCloseTo(1.2);
+    expect(panelZoom(1.4, 100, 80)).toBeCloseTo(1.12);
+    expect(panelZoom(1, 100, 1000)).toBe(1.5); // no huge letters
+    expect(panelZoom(1, 100, 10)).toBe(0.8); // nor tiny ones
     expect(panelZoom(1.2, 0, 50)).toBe(1.2);
   });
 });

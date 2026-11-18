@@ -46,8 +46,9 @@ export function zoomDeltas(factor: number): number[] {
 }
 
 /** Content zoom of a panel after pinching from `startDist` to `dist`, starting
- *  at `startZoom`; clamped to a readable range. */
-export function panelZoom(startZoom: number, startDist: number, dist: number, min = 0.6, max = 3): number {
+ *  at `startZoom`; clamped to a readable range — 150% makes small text easy to
+ *  read without blowing it up, 80% keeps it legible when shrinking. */
+export function panelZoom(startZoom: number, startDist: number, dist: number, min = 0.8, max = 1.5): number {
   if (!(startDist > 0) || !(dist > 0)) return startZoom;
   return Math.min(max, Math.max(min, startZoom * (dist / startDist)));
 }
