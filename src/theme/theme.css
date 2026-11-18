@@ -3779,3 +3779,119 @@ table.summary td.k {
   min-height: 0;
 }
 .side-docks > .ids-panel + .ids-panel { border-top: 1px solid var(--border); }
+
+/* --- Touch ---------------------------------------------------------------
+   The 3D canvas handles every touch itself (one finger orbits, two fingers
+   pinch-zoom + pan). Without this the browser claims the gesture after a few
+   pixels to scroll/zoom the page and cancels it for the viewer - rotation
+   then only moved a degree or two per swipe. */
+.viewer-host canvas { touch-action: none; }
+/* The page itself never pinch-zooms (menus keep their size); scrolling still
+   works, and panels zoom their own content with two fingers (Viewer). */
+html, body { touch-action: pan-x pan-y; }
+/* Per-panel content zoom (set by a two-finger pinch on the panel). */
+.pz-zoomed > :not(.mp-strip-head):not(.tree-resize):not(.props-resize):not(.models-resize) {
+  zoom: var(--pz, 1);
+}
+/* A zoomed panel keeps its box: the enlarged content scrolls inside it. */
+.pz-zoomed { overflow: auto; }
+
+/* Phone, portrait: "Models & tree" scrolls as one, like the Info panel - the
+   model list, tabs, search and the whole tree flow in the panel, instead of
+   the tree getting a ~100px window under them. */
+.viewer-wrap.mp .ifctree-panel.mp-expanded { overflow-y: auto; }
+.viewer-wrap.mp .ifctree-panel.mp-expanded > * { flex-shrink: 0; }
+.viewer-wrap.mp .ifctree-panel.mp-expanded .models-panel { max-height: none; }
+.viewer-wrap.mp .ifctree-panel.mp-expanded .ifctree-body,
+.viewer-wrap.mp .ifctree-panel.mp-expanded .ifctree {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+.viewer-wrap.mp .ifctree-panel.mp-expanded .models-resize { display: none; }
+
+/* Phone: logo and actions share ONE row (no empty half-row next to the logo):
+   a smaller logo without the "IFCescu" text, 32px buttons. Wraps only if a very
+   narrow screen can't fit it. */
+@media (max-width: 700px) {
+  .topbar { row-gap: 4px; padding: 6px 8px; }
+  .topbar .brand { gap: 6px; flex: 0 1 auto; min-width: 0; }
+  .topbar .brand-name { display: none; }
+  .topbar .brand-logo svg { height: 26px; }
+  .topbar-right { width: auto; margin-left: auto; justify-content: flex-end; gap: 4px; }
+  .topbar .toggle,
+  .topbar .help-toggle,
+  .topbar .settings-toggle,
+  .topbar .lang-toggle,
+  .topbar .theme-toggle { width: 32px; height: 32px; }
+  .topbar .dl-btn { height: 32px; padding: 0 8px; }
+}
+/* ...and on phones the logo shrinks to its buildingSMART knot (the left part of
+   the SVG), so it fits next to the seven action buttons. */
+@media (max-width: 700px) {
+  .topbar .brand-logo { width: 30px; overflow: hidden; flex: 0 0 auto; }
+  .topbar .brand-logo svg { height: 30px; max-width: none; }
+}
+@media (max-width: 700px) {
+  /* keep the SVG at its natural width; the 30px box crops it to the knot */
+  .topbar .brand-logo svg { flex-shrink: 0; width: auto; }
+}
+
+/* Up to 9 panels on a phone (tree, tools, props, IDS, BCF, filter, table,
+   clashes, analytics): n strips take n * (strip + gap) from their edge. */
+.viewer-wrap.mp .mp-l-0, .viewer-wrap.mp .mp-expanded.mp-before-0 { left: var(--mp-gap); }
+.viewer-wrap.mp .mp-r-0, .viewer-wrap.mp .mp-expanded.mp-after-0 { right: var(--mp-gap); }
+.viewer-wrap.mp .mp-l-1, .viewer-wrap.mp .mp-expanded.mp-before-1 { left: calc(2 * var(--mp-gap) + 1 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-1, .viewer-wrap.mp .mp-expanded.mp-after-1 { right: calc(2 * var(--mp-gap) + 1 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-2, .viewer-wrap.mp .mp-expanded.mp-before-2 { left: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-2, .viewer-wrap.mp .mp-expanded.mp-after-2 { right: calc(3 * var(--mp-gap) + 2 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-3, .viewer-wrap.mp .mp-expanded.mp-before-3 { left: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-3, .viewer-wrap.mp .mp-expanded.mp-after-3 { right: calc(4 * var(--mp-gap) + 3 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-4, .viewer-wrap.mp .mp-expanded.mp-before-4 { left: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-4, .viewer-wrap.mp .mp-expanded.mp-after-4 { right: calc(5 * var(--mp-gap) + 4 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-5, .viewer-wrap.mp .mp-expanded.mp-before-5 { left: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-5, .viewer-wrap.mp .mp-expanded.mp-after-5 { right: calc(6 * var(--mp-gap) + 5 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-6, .viewer-wrap.mp .mp-expanded.mp-before-6 { left: calc(7 * var(--mp-gap) + 6 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-6, .viewer-wrap.mp .mp-expanded.mp-after-6 { right: calc(7 * var(--mp-gap) + 6 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-7, .viewer-wrap.mp .mp-expanded.mp-before-7 { left: calc(8 * var(--mp-gap) + 7 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-7, .viewer-wrap.mp .mp-expanded.mp-after-7 { right: calc(8 * var(--mp-gap) + 7 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-l-8, .viewer-wrap.mp .mp-expanded.mp-before-8 { left: calc(9 * var(--mp-gap) + 8 * var(--mp-strip)); }
+.viewer-wrap.mp .mp-r-8, .viewer-wrap.mp .mp-expanded.mp-after-8 { right: calc(9 * var(--mp-gap) + 8 * var(--mp-strip)); }
+
+/* Desktop: the bottom panels (filter, clashes, analytics) stack at the bottom
+   of the 3D view instead of overlapping; each keeps its own height. */
+.host-docks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow-y: auto;
+}
+.host-docks > .an-dock { position: relative; flex-shrink: 0; }
+.host-docks > .an-dock + .an-dock { border-top: 2px solid var(--border); }
+.viewer-wrap.mp .mp-panel > .host-docks { position: static; }
+
+/* Collapsed strip: red close button above Expand (all panels but tree/tools). */
+.mp-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--mp-strip) - 12px);
+  aspect-ratio: 1;
+  max-width: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: #e5484d;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mp-close:hover { filter: brightness(1.08); }
+/* Very narrow strips (many panels open): tighter head. */
+.viewer-wrap.mp .mp-strip-head { gap: 6px; }
+.viewer-wrap.mp .mp-expand { width: calc(var(--mp-strip) - 8px); }

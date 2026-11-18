@@ -4,6 +4,7 @@ import type { ViewerCameraState } from "@ifc-lite/bcf";
 import type { Theme } from "../hooks/useTheme";
 import { usePersistedNumber } from "../hooks/usePersistedNumber";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { panelZoom } from "../viewer/touch";
 import type { GeorefInfo } from "../ifc/editor";
 import { detectSchema, type IfcSchema } from "../ifc/store";
 import { IfcEditor, type SelectionDetail } from "../ifc/editor";
@@ -47,7 +48,7 @@ const IDS_FAIL_COLOR: [number, number, number, number] = [0.85, 0.13, 0.13, 1];
 const FILTER_COLOR: [number, number, number, number] = [0.55, 0.36, 0.96, 1];
 
 // The mutually-exclusive bottom panels (one open at a time).
-type BottomDock = "none" | "filter" | "clash" | "analytics" | "table";
+type BottomDock = "filter" | "clash" | "analytics" | "table";
 
 /** A locally-saved viewpoint: camera pose + user visibility (B4). */
 interface Viewpoint {
@@ -157,14 +158,17 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const { t, lang } = useI18n();
   const { settings, update } = useSettings();
   const analyticsEnabled = settings.experimental.analytics;
-  // The bottom area is single-occupancy: Filter / Clash / Analytics (absolute
-  // .an-dock overlays) and Table (a flow panel) share it, so exactly one is open
-  // at a time — opening one closes the others. The right-side IDS and BCF panels
-  // are tracked separately (`idsOpen` / `bcfOpen`) and can coexist with it.
-  const [bottomDock, setBottomDock] = useState<BottomDock>("none");
-  const bottomDockRef = useRef(bottomDock);
-  bottomDockRef.current = bottomDock;
-  const toggleBottom = (d: BottomDock) => setBottomDock((c) => (c === d ? "none" : d));
+  // The bottom panels — Filter / Clash / Analytics (.an-dock overlays at the
+  // bottom of the 3D view) and Table (a flow panel under it) — are independent:
+  // any of them can be open at once. Kept in opening order (Escape closes the
+  // last one). The right-side IDS and BCF panels are tracked separately
+  // (`idsOpen` / `bcfOpen`).
+  const [bottomOpen, setBottomOpen] = useState<BottomDock[]>([]);
+  const bottomOpenRef = useRef(bottomOpen);
+  bottomOpenRef.current = bottomOpen;
+  const isBottom = (d: BottomDock) => bottomOpen.includes(d);
+  const toggleBottom = (d: BottomDock) => setBottomOpen((c) => (c.includes(d) ? c.filter((x) => x !== d) : [...c, d]));
+  const closeBottom = (d: BottomDock) => setBottomOpen((c) => c.filter((x) => x !== d));
   // Mirrors the current projection so the empty-deps keydown handler reads a fresh
   // value when toggling with "O" (avoids a stale closure).
   const projectionRef = useRef(settings.viewer.projection);
@@ -278,7 +282,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [ready, setReady] = useState(false);
   // The IDS and BCF panels (right side on desktop; toolbar toggles). Independent:
-  // both can be open at once. Filter lives in `bottomDock` (a bottom .an-dock).
+  // both can be open at once. Filter is one of the bottom panels (`bottomOpen`).
   const [idsOpen, setIdsOpen] = useState(false);
   const [bcfOpen, setBcfOpen] = useState(false);
   // Mirror for the empty-deps keydown handler (Escape closes BCF, then IDS).
@@ -298,7 +302,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // strips on the left (the tools strip keeps its icons) — and the 3D view gets
   // the lower part. Selecting an element brings the properties forward.
   const isPortraitPhone = useMediaQuery("(max-width: 700px) and (orientation: portrait)");
-  const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props" | "ids" | "bcf" | "bottom">("tree");
+  const [mobilePanel, setMobilePanel] = useState<"tree" | "tools" | "props" | "ids" | "bcf" | BottomDock>("tree");
+  // Viewport width, for sizing the collapsed strips (updated with the layout).
+  const [mpVw, setMpVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 375));
   // Share of the viewer height the top panels take (%), set by dragging the bar
   // between them and the 3D view; remembered.
   const [mpTop, setMpTop] = usePersistedNumber("mobileTopPct", 46);
@@ -330,6 +336,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     const place = () => {
       const el = wrapRef.current;
       if (el) el.style.setProperty("--mp-wrap-top", `${el.getBoundingClientRect().top}px`);
+      setMpVw(window.innerWidth);
     };
     place();
     // The top bar's height changes when it wraps or gains a button (Download).
@@ -342,6 +349,46 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       window.removeEventListener("resize", place);
     };
   }, [isPortraitPhone]);
+
+  // Touch: a two-finger pinch on a panel zooms THAT panel's content (the page
+  // itself never pinch-zooms — see touch-action in theme.css — so menus keep
+  // their size). The panel stays put; its zoomed content scrolls inside it.
+  // The 3D canvas handles its own pinch (engine).
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const PANELS = ".ifctree-panel, .props-panel, .ids-panel, .an-dock, .datatable-panel, .mp-panel";
+    let g: { el: HTMLElement; startDist: number; startZoom: number } | null = null;
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>(PANELS) ?? null;
+      g = el && !el.classList.contains("mp-collapsed") ? { el, startDist: spread(e.touches), startZoom: Number(el.dataset.pz || 1) } : null;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!g || e.touches.length !== 2) return;
+      const z = panelZoom(g.startZoom, g.startDist, spread(e.touches));
+      g.el.dataset.pz = String(z);
+      g.el.style.setProperty("--pz", String(z));
+      g.el.classList.toggle("pz-zoomed", Math.abs(z - 1) > 0.02);
+      if (e.cancelable) e.preventDefault();
+    };
+    const onEnd = (e: TouchEvent) => { if (e.touches.length < 2) g = null; };
+    // iOS Safari: block its own page pinch (it doesn't always honour touch-action).
+    const noGesture = (e: Event) => e.preventDefault();
+    wrap.addEventListener("touchstart", onStart, { passive: true });
+    wrap.addEventListener("touchmove", onMove, { passive: false });
+    wrap.addEventListener("touchend", onEnd);
+    wrap.addEventListener("touchcancel", onEnd);
+    document.addEventListener("gesturestart", noGesture);
+    return () => {
+      wrap.removeEventListener("touchstart", onStart);
+      wrap.removeEventListener("touchmove", onMove);
+      wrap.removeEventListener("touchend", onEnd);
+      wrap.removeEventListener("touchcancel", onEnd);
+      document.removeEventListener("gesturestart", noGesture);
+    };
+  }, []);
   useEffect(() => {
     if (isPortraitPhone && propGroups) setMobilePanel("props");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,8 +405,8 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // B4: locally-saved viewpoints (camera + visibility), persisted per file.
   const [viewpoints, setViewpoints] = useState<Viewpoint[]>([]);
   const vpSeq = useRef(0);
-  // Bottom data-table (pivot) config — persists while the panel (bottomDock ===
-  // "table") is toggled off/on.
+  // Bottom data-table (pivot) config — persists while the panel (isBottom(
+  // "table")) is toggled off/on.
   const [pivotConfig, setPivotConfig] = useState<PivotConfig>({
     // Default grouping = Model → IFC class. "model" is auto-ignored when only one
     // model is loaded (it's not in the discovered fields then), so it falls back
@@ -692,10 +739,14 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     if (isPortraitPhone && bcfOpen) setMobilePanel("bcf");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bcfOpen]);
+  // The bottom panel just opened (last in the list, and new) takes the front.
+  const prevBottomRef = useRef<BottomDock[]>([]);
   useEffect(() => {
-    if (isPortraitPhone && bottomDock !== "none") setMobilePanel("bottom");
+    const added = bottomOpen.find((d) => !prevBottomRef.current.includes(d));
+    prevBottomRef.current = bottomOpen;
+    if (isPortraitPhone && added) setMobilePanel(added);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomDock]);
+  }, [bottomOpen]);
 
   // Rebuild the per-model forests when the language changes so the localised
   // tree labels (e.g. the material buckets) follow the switch. Skips the initial
@@ -741,8 +792,9 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         if (measureModeRef.current !== "none" || sectionRef.current) {
           chooseMeasure("none");
           if (sectionRef.current) toggleSection();
-        } else if (bottomDockRef.current !== "none") {
-          setBottomDock("none");
+        } else if (bottomOpenRef.current.length) {
+          const last = bottomOpenRef.current[bottomOpenRef.current.length - 1];
+          setBottomOpen((c) => c.filter((x) => x !== last));
         } else if (sideOpenRef.current.bcf) {
           setBcfOpen(false);
         } else if (sideOpenRef.current.ids) {
@@ -1448,14 +1500,12 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
   // The docks. On desktop they render in their usual places (side dock on the
   // right, filter/clash/analytics over the 3D view, table under it); on a
   // portrait phone they become panels of the upper row (see the end of the JSX).
-  const hostDock = (
-    <>
-      {analyticsEnabled && bottomDock === "analytics" && ready && pivotModels.length > 0 && (
+  const analyticsEl = analyticsEnabled && isBottom("analytics") && ready && pivotModels.length > 0 ? (
         <Suspense fallback={<div className="an-dock" style={{ height: 380 }} />}>
-          <AnalyticsPanel models={pivotModels} onFilter={onAnalyticsFilter} onClose={() => setBottomDock("none")} />
+          <AnalyticsPanel models={pivotModels} onFilter={onAnalyticsFilter} onClose={() => closeBottom("analytics")} />
         </Suspense>
-      )}
-      {bottomDock === "filter" && (
+  ) : null;
+  const filterEl = isBottom("filter") ? (
         <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
         <FilterPanel
           editor={editor}
@@ -1471,11 +1521,11 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             else setGroupColorMap(ids.length ? new Map(ids.map((id) => [id, FILTER_COLOR] as [number, Rgba])) : null);
           }}
           onReset={() => { showAll(); setGroupColorMap(null); selectIds([]); }}
-          onClose={() => setBottomDock("none")}
+          onClose={() => closeBottom("filter")}
         />
         </Suspense>
-      )}
-      {bottomDock === "clash" && ready && pivotModels.length > 0 && engineRef.current && (
+  ) : null;
+  const clashEl = isBottom("clash") && ready && pivotModels.length > 0 && engineRef.current ? (
         <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
           <ClashPanel
             engine={engineRef.current}
@@ -1487,13 +1537,20 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             fileName={fileName}
             onShow={onClashShow}
             onReset={onClashReset}
-            onClose={() => setBottomDock("none")}
+            onClose={() => closeBottom("clash")}
           />
         </Suspense>
-      )}
-    </>
-  );
-  const tableDock = bottomDock === "table" && ready && pivotModels.length > 0 ? (
+  ) : null;
+  // Desktop: the overlay panels stack at the bottom of the 3D view (any number
+  // open at once, each at its own height).
+  const hostDock = analyticsEl || filterEl || clashEl ? (
+    <div className="host-docks">
+      {analyticsEl}
+      {filterEl}
+      {clashEl}
+    </div>
+  ) : null;
+  const tableDock = isBottom("table") && ready && pivotModels.length > 0 ? (
     <Suspense fallback={<div className="an-dock" style={{ height: 360 }} />}>
     <DataTablePanel
       models={pivotModels}
@@ -1502,7 +1559,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
       onConfigChange={setPivotConfig}
       onSelectRows={(ids) => selectIds(ids)}
       onColorByGroup={setGroupColorMap}
-      onClose={() => setBottomDock("none")}
+      onClose={() => closeBottom("table")}
       engine={settings.experimental.geoQto ? engineRef.current : null}
       editor={editor}
       onGeoComputed={() => setGeoVersion((v) => v + 1)}
@@ -1545,36 +1602,47 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
     />
     </Suspense>
   ) : null;
-  // The bottom dock that actually renders (same conditions as above), with its
-  // strip title and Expand colour.
-  const bottomPanel =
-    bottomDock === "filter" ? { title: t("filter.tab"), color: MP_COLORS.filter }
-    : bottomDock === "table" && tableDock ? { title: t("dataTable.tab"), color: MP_COLORS.table }
-    : bottomDock === "clash" && ready && pivotModels.length > 0 && engineRef.current ? { title: t("clash.tab"), color: MP_COLORS.clash }
-    : bottomDock === "analytics" && analyticsEnabled && ready && pivotModels.length > 0 ? { title: t("analytics.tab"), color: MP_COLORS.analytics }
-    : null;
+  // Portrait phone: the bottom panels that actually render, each its own panel
+  // of the upper row (strip title, Expand colour, its element).
+  const bottomPanels: { k: BottomDock; title: string; color: string; el: ReactNode }[] = [
+    { k: "filter" as const, title: t("filter.tab"), color: MP_COLORS.filter, el: filterEl },
+    { k: "table" as const, title: t("dataTable.tab"), color: MP_COLORS.table, el: tableDock },
+    { k: "clash" as const, title: t("clash.tab"), color: MP_COLORS.clash, el: clashEl },
+    { k: "analytics" as const, title: t("analytics.tab"), color: MP_COLORS.analytics, el: analyticsEl },
+  ].filter((p) => !!p.el);
 
-  type MobilePanel = "tree" | "tools" | "props" | "ids" | "bcf" | "bottom";
-  const mpOrder = (["tree", "tools", "props", "ids", "bcf", "bottom"] as MobilePanel[]).filter(
+  type MobilePanel = "tree" | "tools" | "props" | "ids" | "bcf" | BottomDock;
+  const mpOrder = (["tree", "tools", "props", "ids", "bcf", "filter", "table", "clash", "analytics"] as MobilePanel[]).filter(
     (k) =>
       (k !== "props" || !!(propGroups || showInfo)) &&
       (k !== "ids" || !!idsDock) &&
       (k !== "bcf" || !!bcfDock) &&
-      (k !== "bottom" || !!bottomPanel),
+      (!["filter", "table", "clash", "analytics"].includes(k) || bottomPanels.some((p) => p.k === k)),
   );
   const mpActive: MobilePanel = mpOrder.includes(mobilePanel) ? mobilePanel : "tree";
   const mpAt = mpOrder.indexOf(mpActive);
-  // Narrower strips when more panels share the row, so the expanded one keeps room.
-  const mpStrip = mpOrder.length >= 6 ? 36 : mpOrder.length === 5 ? 40 : mpOrder.length === 4 ? 46 : 54;
+  // Strip width from the screen width, so the expanded panel keeps ~150px however
+  // many panels share the row (54px when there's room, never under 24px).
+  const mpStrips = mpOrder.length - 1;
+  const mpStrip = mpStrips
+    ? Math.max(24, Math.min(54, Math.floor((mpVw - 2 * 6 - mpStrips * 6 - 150) / mpStrips)))
+    : 54;
   const mpClass = (k: MobilePanel) => {
     if (!isPortraitPhone) return "";
     const i = mpOrder.indexOf(k);
     if (k === mpActive) return ` mp-expanded mp-before-${mpAt} mp-after-${mpOrder.length - 1 - mpAt}`;
     return i < mpAt ? ` mp-collapsed mp-l-${i}` : ` mp-collapsed mp-r-${mpOrder.length - 1 - i}`;
   };
-  const mpHead = (k: MobilePanel, title?: string, color?: string) =>
+  // Collapsed strip head: a red ✕ (closes the panel — every panel but the tree
+  // and the tools can be closed) above the Expand button, then the title.
+  const mpHead = (k: MobilePanel, title?: string, color?: string, onClose?: () => void) =>
     isPortraitPhone && k !== mpActive ? (
       <div className="mp-strip-head">
+        {onClose && (
+          <button type="button" className="mp-close" onClick={onClose} title={t("common.close")} aria-label={t("common.close")}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+        )}
         <button type="button" className="mp-expand" onClick={() => setMobilePanel(k)} title={t("viewer.mobileExpand")} style={color ? { background: color } : undefined}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
           <span>{t("viewer.mobileExpand")}</span>
@@ -1742,7 +1810,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
           <span className="vsep" />
 
-          <button className={"vbtn" + (bottomDock === "filter" ? " active" : "")} onClick={() => toggleBottom("filter")} title={t("filter.title")} data-tour="filter">
+          <button className={"vbtn" + (isBottom("filter") ? " active" : "")} onClick={() => toggleBottom("filter")} title={t("filter.title")} data-tour="filter">
             <span className="ic"><ToolIcon kind="filter" /></span>
             <span>{t("filter.tab")}</span>
           </button>
@@ -1757,20 +1825,20 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
             <span>BCF</span>
           </button>
 
-          <button className={"vbtn" + (bottomDock === "table" ? " active" : "")} onClick={() => toggleBottom("table")} data-tour="table">
+          <button className={"vbtn" + (isBottom("table") ? " active" : "")} onClick={() => toggleBottom("table")} data-tour="table">
             <span className="ic"><ToolIcon kind="table" /></span>
             <span>{t("dataTable.tab")}</span>
           </button>
 
           {analyticsEnabled && (
-            <button className={"vbtn" + (bottomDock === "analytics" ? " active" : "")} onClick={() => toggleBottom("analytics")} title={t("analytics.title")}>
+            <button className={"vbtn" + (isBottom("analytics") ? " active" : "")} onClick={() => toggleBottom("analytics")} title={t("analytics.title")}>
               <span className="ic"><ToolIcon kind="analytics" /></span>
               <span>{t("analytics.tab")}</span>
             </button>
           )}
 
 
-          <button className={"vbtn" + (bottomDock === "clash" ? " active" : "")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")} data-tour="clash">
+          <button className={"vbtn" + (isBottom("clash") ? " active" : "")} onClick={() => toggleBottom("clash")} disabled={pivotModels.length === 0} title={t("clash.title")} data-tour="clash">
             <span className="ic"><ToolIcon kind="clash" /></span>
             <span>{t("clash.tab")}</span>
           </button>
@@ -1884,7 +1952,7 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
 
       {(propGroups || showInfo) && (
       <aside className={"props-panel" + mpClass("props")} style={{ width: propsWidth }}>
-        {mpHead("props", propGroups ? t("viewer.propsTitle") : t("viewer.modelInfoTitle"))}
+        {mpHead("props", propGroups ? t("viewer.propsTitle") : t("viewer.modelInfoTitle"), undefined, () => { clearSelection(); setShowInfo(false); })}
         <div className="props-resize" onPointerDown={startPropsResize} title={t("viewer.resize")} />
         <div className="props-head">
           <span>{propGroups ? t("viewer.propsTitle") : t("viewer.modelInfoTitle")}</span>
@@ -1954,27 +2022,26 @@ export function Viewer({ editor, onChangeCount, bytes, fileName, theme, georef, 
         </div>
       )}
 
-      {/* Phone, portrait: IDS, BCF and the bottom dock (filter, table, clashes,
-          analytics) join the upper row as panels of their own. */}
+      {/* Phone, portrait: IDS, BCF and each bottom panel (filter, table,
+          clashes, analytics) join the upper row as panels of their own. */}
       {isPortraitPhone && idsDock && (
         <aside className={"mp-panel" + mpClass("ids")}>
-          {mpHead("ids", "IDS", MP_COLORS.ids)}
+          {mpHead("ids", "IDS", MP_COLORS.ids, () => setIdsOpen(false))}
           {idsDock}
         </aside>
       )}
       {isPortraitPhone && bcfDock && (
         <aside className={"mp-panel" + mpClass("bcf")}>
-          {mpHead("bcf", "BCF", MP_COLORS.bcf)}
+          {mpHead("bcf", "BCF", MP_COLORS.bcf, () => setBcfOpen(false))}
           {bcfDock}
         </aside>
       )}
-      {isPortraitPhone && bottomPanel && (
-        <aside className={"mp-panel" + mpClass("bottom")}>
-          {mpHead("bottom", bottomPanel.title, bottomPanel.color)}
-          {hostDock}
-          {tableDock}
+      {isPortraitPhone && bottomPanels.map((p) => (
+        <aside key={p.k} className={"mp-panel" + mpClass(p.k)}>
+          {mpHead(p.k, p.title, p.color, () => closeBottom(p.k))}
+          {p.el}
         </aside>
-      )}
+      ))}
 
       {idsEditorOpen && (
         <Suspense fallback={null}>
